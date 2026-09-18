@@ -218,15 +218,26 @@ def generate_spectrogram_plot_b64(raw_audio, sr, dur, fname, is_leak, f, psd_cal
     ax_mel.set_xlabel("시간 (초)", color='#8FA8D6', fontsize=8)
     ax_mel.set_ylabel("주파수 (Hz)", color='#8FA8D6', fontsize=8)
 
-    # 2. Welch PSD (파워 스펙트럼 밀도)
-    ax_psd.plot(f, psd_calib, color='#00E3FD', lw=1.6, label='PSD')
-    ax_psd.axvline(1500, color='#F59E0B', ls='--', lw=1.2, label='1.5kHz 고주파 경계')
-    peak_y = float(np.interp(peak_freq, f, psd_calib))
-    ax_psd.plot(peak_freq, peak_y, 'ro', markersize=5, label=f'피크 {peak_freq:.0f}Hz')
-    ax_psd.set_title("파워 스펙트럼 밀도 (PSD)", color='#E2E8F0', fontsize=9.5, fontweight='bold', pad=7)
-    ax_psd.set_xlabel("주파수 (Hz)", color='#8FA8D6', fontsize=8)
-    ax_psd.set_ylabel("스펙트럼 강도", color='#8FA8D6', fontsize=8)
-    ax_psd.legend(facecolor='#0B1422', edgecolor='#223659', labelcolor='#E2E8F0', fontsize=7.5, loc='upper right')
+    # 2. 주파수 대역별 에너지 비중 (한눈에 직관 확인)
+    band1 = float(np.sum(psd_calib[(f >= 0) & (f < 300)]))
+    band2 = float(np.sum(psd_calib[(f >= 300) & (f < 1500)]))
+    band3 = float(np.sum(psd_calib[(f >= 1500) & (f <= 4000)]))
+    tot_band = band1 + band2 + band3 + 1e-12
+    pct1 = (band1 / tot_band) * 100.0
+    pct2 = (band2 / tot_band) * 100.0
+    pct3 = (band3 / tot_band) * 100.0
+
+    band_labels = ['환경 잡음\n(<300Hz)', '관체 진동\n(300~1.5k)', '누수 제트음\n(1.5k~4kHz)']
+    band_vals = [pct1, pct2, pct3]
+    leak_color = '#F87171' if is_leak or pct3 >= 25.0 else '#00E3FD'
+    band_colors = ['#64748B', '#00E3FD', leak_color]
+    bars_band = ax_psd.barh(band_labels, band_vals, color=band_colors, height=0.52, edgecolor='#3A5075', lw=0.7)
+    for b, v in zip(bars_band, band_vals):
+        ax_psd.text(v + 1.5, b.get_y() + b.get_height()/2.0, f"{v:.1f}%", va='center', color='#FFFFFF', fontsize=8.5, fontweight='bold')
+    max_val = max(band_vals) if len(band_vals) > 0 else 50.0
+    ax_psd.set_xlim(0, max(max_val + 20, 75))
+    ax_psd.set_title("주파수 대역별 에너지 비중", color='#E2E8F0', fontsize=9.5, fontweight='bold', pad=7)
+    ax_psd.set_xlabel("전체 음향 에너지 점유율 (%)", color='#8FA8D6', fontsize=8)
     ax_psd.grid(True, color='#1A2944', linestyle=':', alpha=0.7)
 
     # 3. AI 듀얼 판정 확률 대조 (수평 바 차트)
