@@ -528,7 +528,11 @@ HTML_PAGE = """
     }
   </script>
   <style>
-    * { font-family: 'Pretendard', 'Inter', -apple-system, sans-serif; }
+    * { 
+      font-family: 'Pretendard', 'Inter', -apple-system, sans-serif; 
+      word-break: keep-all; 
+      overflow-wrap: break-word;
+    }
     .material-symbols-outlined {
       font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
       font-size: 20px;
@@ -560,11 +564,12 @@ HTML_PAGE = """
       flex-direction: column;
     }
     body.mode-mobile header {
-      padding-left: 0.875rem;
-      padding-right: 0.875rem;
+      padding-left: 0.75rem;
+      padding-right: 0.75rem;
       height: 3.5rem;
     }
-    body.mode-mobile #hdrDeskMeta {
+    body.mode-mobile #hdrDeskMeta,
+    body.mode-mobile #hdrUploadBtn {
       display: none !important;
     }
     body.mode-mobile #mainLayout {
@@ -621,41 +626,42 @@ HTML_PAGE = """
   <div id="appContainer">
 
   <!-- ==================== TOP NAVIGATION BAR ==================== -->
-  <header class="bg-surface-container flex justify-between items-center w-full px-4 sm:px-6 h-16 border-b border-outline-variant z-40 shrink-0">
-    <div class="flex items-center gap-3 sm:gap-4">
-      <div class="flex items-center gap-2 cursor-pointer" onclick="location.reload()">
+  <header class="bg-surface-container flex justify-between items-center w-full px-3 sm:px-6 h-14 sm:h-16 border-b border-outline-variant z-40 shrink-0">
+    <div class="flex items-center gap-2 sm:gap-4 shrink-0 min-w-0">
+      <div class="flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0" onclick="location.reload()">
         <span class="material-symbols-outlined text-secondary text-[22px]">graphic_eq</span>
-        <span class="text-sm sm:text-base font-bold text-secondary tracking-tight">서용엔지니어링 누수음 AI</span>
+        <span class="text-sm sm:text-base font-bold text-secondary tracking-tight whitespace-nowrap">서용 누수음 AI</span>
       </div>
 
       <div class="h-4 w-[1px] bg-outline-variant hidden md:block"></div>
       
       <div class="hidden md:flex items-center gap-2" id="hdrDeskMeta">
-        <span class="px-2 py-0.5 rounded bg-surface-container-high border border-outline-variant text-xs text-secondary font-semibold" id="hdrSector">
+        <span class="px-2 py-0.5 rounded bg-surface-container-high border border-outline-variant text-xs text-secondary font-semibold whitespace-nowrap" id="hdrSector">
           상수관망 현장 진단
         </span>
-        <span class="text-xs text-on-surface-variant font-mono" id="hdrDiagId">
+        <span class="text-xs text-on-surface-variant font-mono whitespace-nowrap" id="hdrDiagId">
           SY-LEAK-AI
         </span>
       </div>
     </div>
 
-    <!-- Center/Right: View Mode Toggle & Upload -->
-    <div class="flex items-center gap-2 sm:gap-3">
+    <!-- Center/Right: View Mode Toggle (모바일에서는 우측 업로드 버튼 삭제) -->
+    <div class="flex items-center gap-2 shrink-0">
       <!-- 홈쇼핑 스타일 뷰 모드 전환 토글 (기본: 모바일) -->
-      <div class="flex items-center bg-surface-container-lowest p-0.5 rounded-lg border border-outline-variant shadow-inner">
-        <button id="btnViewMobile" onclick="setViewMode('mobile')" class="px-2 sm:px-2.5 py-1 rounded text-xs font-bold flex items-center gap-1 transition-all bg-primary-container text-white shadow-sm" title="스마트폰 화면 최적화 규격">
+      <div class="flex items-center bg-surface-container-lowest p-0.5 rounded-lg border border-outline-variant shadow-inner shrink-0">
+        <button id="btnViewMobile" onclick="setViewMode('mobile')" class="px-2.5 py-1 rounded text-xs font-bold flex items-center gap-1 transition-all bg-primary-container text-white shadow-sm whitespace-nowrap shrink-0" title="스마트폰 화면 최적화 규격">
           <span class="material-symbols-outlined text-[15px]">smartphone</span> 모바일
         </button>
-        <button id="btnViewPC" onclick="setViewMode('pc')" class="px-2 sm:px-2.5 py-1 rounded text-xs font-medium flex items-center gap-1 transition-all text-on-surface-variant hover:text-on-surface" title="와이드 모니터 관제 화면">
+        <button id="btnViewPC" onclick="setViewMode('pc')" class="px-2.5 py-1 rounded text-xs font-medium flex items-center gap-1 transition-all text-on-surface-variant hover:text-on-surface whitespace-nowrap shrink-0" title="와이드 모니터 관제 화면">
           <span class="material-symbols-outlined text-[15px]">desktop_windows</span> PC
         </button>
       </div>
 
+      <!-- PC 뷰에서만 노출되는 헤더 업로드 버튼 (모바일 화면에서는 삭제 요청 반영) -->
       <input type="file" id="fileInput" class="hidden" accept=".wav,.mp4,.m4a,.mp3,.mov,.aac,.flac,.ogg,.wma" onchange="handleFileSelect(event)">
-      <button onclick="document.getElementById('fileInput').click()" class="flex items-center gap-1 bg-primary-container hover:bg-primary-container/90 text-white px-3 py-1.5 rounded text-xs font-bold transition-all shadow-md active:scale-[0.98]">
+      <button id="hdrUploadBtn" onclick="document.getElementById('fileInput').click()" class="hidden md:flex items-center gap-1.5 bg-primary-container hover:bg-primary-container/90 text-white px-3 py-1.5 rounded text-xs font-bold transition-all shadow-md active:scale-[0.98] whitespace-nowrap shrink-0">
         <span class="material-symbols-outlined text-[16px]">upload_file</span>
-        <span class="hidden sm:inline">새 음원</span> 업로드
+        새 음원 업로드
       </button>
     </div>
   </header>
@@ -738,17 +744,14 @@ HTML_PAGE = """
     <main id="mainCanvas" class="flex-1 bg-surface p-4 lg:p-6 overflow-y-auto max-w-[1720px] mx-auto flex flex-col gap-4 lg:gap-5">
       
       <!-- Context Strip -->
-      <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-outline-variant/60 text-xs">
-        <div class="flex items-center gap-2 font-medium">
-          <span class="text-on-surface-variant">서용엔지니어링</span>
+      <div class="flex items-center justify-between gap-2 pb-2 border-b border-outline-variant/60 text-xs overflow-hidden">
+        <div class="flex items-center gap-1.5 font-medium truncate">
+          <span class="text-on-surface-variant whitespace-nowrap">서용</span>
           <span class="text-outline-variant">/</span>
-          <span class="text-secondary font-bold">지능형 누수음 정밀 진단</span>
+          <span class="text-secondary font-bold whitespace-nowrap">지능형 누수음 진단</span>
         </div>
-        <div class="flex items-center gap-3 text-xs">
-          <div class="flex items-center gap-1 text-on-surface-variant font-mono">
-            <span class="text-outline">시각:</span>
-            <span class="text-on-surface font-semibold" id="dispSyncTime">2026-09-18 10:30:00 KST</span>
-          </div>
+        <div class="text-xs text-on-surface-variant font-mono whitespace-nowrap shrink-0">
+          <span class="text-outline">시각:</span> <span class="text-on-surface font-semibold" id="dispSyncTime">2026-09-18 11:00 KST</span>
         </div>
       </div>
 
@@ -757,28 +760,28 @@ HTML_PAGE = """
            ondragover="event.preventDefault(); this.classList.add('border-secondary', 'bg-surface-container-high');"
            ondragleave="this.classList.remove('border-secondary', 'bg-surface-container-high');"
            ondrop="handleFileDrop(event)"
-           class="w-full bg-surface-container-low hover:bg-surface-container border-2 border-dashed border-secondary/50 hover:border-secondary rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 cursor-pointer transition-all duration-200 shadow-md group active:scale-[0.99]">
-        <div class="flex items-center gap-3.5 w-full sm:w-auto">
-          <div class="w-12 h-12 rounded-xl bg-primary-container/20 group-hover:bg-primary-container text-secondary group-hover:text-white flex items-center justify-center transition-colors shadow-inner shrink-0">
+           class="w-full bg-surface-container-low hover:bg-surface-container border-2 border-dashed border-secondary/50 hover:border-secondary rounded-xl p-3.5 sm:p-5 flex items-center justify-between gap-3 cursor-pointer transition-all duration-200 shadow-md group active:scale-[0.99]">
+        <div class="flex items-center gap-3 min-w-0 flex-1">
+          <div class="w-11 h-11 rounded-xl bg-primary-container/20 group-hover:bg-primary-container text-secondary group-hover:text-white flex items-center justify-center transition-colors shadow-inner shrink-0">
             <span class="material-symbols-outlined text-2xl">cloud_upload</span>
           </div>
-          <div>
-            <div class="flex items-center gap-2">
-              <h3 class="text-sm sm:text-base font-bold text-white group-hover:text-secondary transition-colors">
-                음원 파일 업로드 및 정밀 진단
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+              <h3 class="text-sm sm:text-base font-bold text-white group-hover:text-secondary transition-colors whitespace-nowrap">
+                음원 파일 업로드 및 진단
               </h3>
-              <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-secondary/15 text-secondary border border-secondary/30">
-                터치하여 선택
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-secondary/15 text-secondary border border-secondary/30 whitespace-nowrap shrink-0">
+                터치 선택
               </span>
             </div>
-            <p class="text-xs text-on-surface-variant mt-0.5">
-              여기를 탭하거나 파일을 끌어다 놓으세요 (WAV, MP4, M4A, MP3 지원)
+            <p class="text-xs text-on-surface-variant mt-0.5 truncate whitespace-nowrap">
+              탭하거나 파일을 끌어다 놓으세요 (WAV, MP4 지원)
             </p>
           </div>
         </div>
-        <div class="w-full sm:w-auto flex items-center justify-end">
-          <button type="button" class="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-primary-container group-hover:bg-primary-container/90 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-md pointer-events-none transition-all">
-            <span class="material-symbols-outlined text-[18px]">file_open</span> 파일 선택하기
+        <div class="shrink-0 hidden md:block">
+          <button type="button" class="px-4 py-2 rounded-lg bg-primary-container group-hover:bg-primary-container/90 text-white text-xs font-bold flex items-center gap-1.5 shadow-md pointer-events-none whitespace-nowrap">
+            <span class="material-symbols-outlined text-[16px]">file_open</span> 파일 선택
           </button>
         </div>
       </div>
