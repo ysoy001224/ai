@@ -358,9 +358,12 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
         di_disp = "해당없음 (정상 통수)"
         leak_type_title = "해당없음 (정상)"
         est_flow_rate = "0.0 L/min (누수 없음)"
-        rec_priority = "정상 (정기 모니터링)"
-        rec_action = "관로 파손이나 누수 분출 진동이 감지되지 않는 안정적인 통수 음향입니다. 1,500Hz 이상 고주파 분출 에너지가 결여되어 있어 누수 위험이 없으므로 정기 순회 모니터링 주기를 유지하십시오."
-        summary_desc = f"관내 정상 수류 순환 패턴. 1,500Hz 이상 고주파 누수 마찰음이 완전히 부재하며, 검출된 {peak_freq:.0f}Hz 부근의 에너지는 미세 지면 진동 및 차량 통행에 의한 일반 환경 잡음으로 누수 징후가 없습니다."
+        diag_status = "정상 수류 음향 (비누수)"
+        diag_conclusion = (
+            f"AI 듀얼 판정 엔진 분석 결과, 누수 확률 {leak_p:.1f}% (비누수 {100.0 - leak_p:.1f}%)로 정상 수류 음향으로 분석되었습니다. "
+            f"1,500Hz 이상 누수 고주파 방출음이 부재하며, 검출된 {peak_freq:.0f}Hz 부근의 에너지는 관내 일반 유수 흐름 및 "
+            f"지면 환경 잡음으로 분석되어 관로 파손이나 누수 징후가 없습니다."
+        )
     else:
         # 누수 발생 시에만 배관 물리 속성 역추정
         feat_arr = np.array([[eff_depth, p_b1, p_b2, p_b3, p_b4, p_b5, spectral_centroid, 4000.0, peak_freq, hf_ratio]])
@@ -382,19 +385,26 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
         if abs(jet_prob - 50.0) <= 6.0:
             leak_type_title = "복합 분출형"
             est_flow_rate = "3.0 ~ 4.5 L/min"
-            leak_type_desc = "고압 제트 분출과 대량 유출 파열의 주파수 경계 영역에 위치합니다."
+            leak_type_desc = "고압 제트 분출과 대량 유출 파열의 경계 대역입니다."
         elif jet_prob > 50.0:
             leak_type_title = "미세 균열 고속 제트 분출"
             est_flow_rate = "1.5 ~ 3.5 L/min"
-            leak_type_desc = "미세 균열부를 통해 고압 수류가 뿜어져 나오며 형성되는 날카로운 1,500Hz 이상 고주파 마찰음이 주도적입니다."
+            leak_type_desc = "미세 균열부를 통한 1,500Hz 이상 고주파 마찰 제트 분출음이 주도적입니다."
         else:
             leak_type_title = "배관 파열 대량 유출형"
             est_flow_rate = "5.0 ~ 8.5 L/min"
-            leak_type_desc = "배관 파단 또는 대구경 손상으로 인해 뿜어져 나오는 대량 수격 진동으로 300~700Hz 대역 에너지가 압도적입니다."
+            leak_type_desc = "관체 파단 또는 대구경 손상으로 인한 300~700Hz 대역 대량 유출 진동음이 우세합니다."
 
-        rec_priority = "1등급 (긴급)"
-        rec_action = f"지하 {eff_depth:.1f}m 구간 밸브 인근 집중 상관식 탐상 및 긴급 굴착 점검 권장. 지속적인 고주파 방출음 패턴과 배관 내압 저하 추이를 고려할 때 미세 균열이 확대될 가능성이 큽니다. 24시간 이내 현장 밸브 차단 및 비파괴 탐침을 수행하십시오."
-        summary_desc = f"{mat_disp} {di_disp} 배관의 {leak_type_title} 특성과 일치. {peak_freq:.0f}Hz 대역의 정재파 음향 특성 분석 결과 고압 분출로 확정 판정되었습니다. {leak_type_desc}"
+        diag_status = "누수 신호 감지 (주의)"
+        model_basis = (
+            f"입력된 배관 제원({mat_disp} {di_disp}) 물리 결합 모델"
+            if pipe_leak_p is not None else "순수 음향 주파수 스펙트럼 분석 모델"
+        )
+        diag_conclusion = (
+            f"AI 듀얼 판정 엔진 분석 결과, 누수 확률 {leak_p:.1f}%로 누수 의심 신호가 감지되었습니다. "
+            f"중심주파수 {spectral_centroid:.0f}Hz 및 피크주파수 {peak_freq:.0f}Hz 대역에서 지속적인 고주파 방출음(지속도 {continuity}%, 고주파비 {hf_ratio:.2f})이 "
+            f"관측되어 {leak_type_title} 음향 특성과 부합합니다. ({model_basis} 판정 기준)"
+        )
 
     # 실측 3패널 차트 생성 (base64)
     plot_b64 = generate_spectrogram_plot_b64(
@@ -430,9 +440,9 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
         'continuity': continuity,
         'pipe_spec_text': pipe_spec_text,
         'est_flow_rate': est_flow_rate,
-        'rec_priority': rec_priority,
-        'rec_action': rec_action,
-        'summary_desc': summary_desc,
+        'diag_status': diag_status,
+        'diag_conclusion': diag_conclusion,
+        'summary_desc': diag_conclusion,
         'plot_b64': plot_b64,
         'waveform_bars': waveform_bars
     }
@@ -906,50 +916,39 @@ HTML_PAGE = """
         </div>
       </section>
 
-      <!-- FIELD ACTION ADVISORY (우리 설명모델 문구 연동) -->
+      <!-- DIAGNOSTIC ALGORITHM CONCLUSION (진단 알고리즘 요약 결론) -->
       <section class="bg-surface-container-low rounded border border-outline-variant p-5 flex flex-col gap-3 shadow-sm">
         <div class="flex flex-wrap items-center justify-between gap-2 border-b border-outline-variant/70 pb-3">
           <div class="flex items-center gap-2">
-            <span class="material-symbols-outlined text-[22px] text-error" id="iconAdvisory">construction</span>
-            <h3 class="text-base font-bold text-white">현장 AI 권장 조치 및 종합 소견</h3>
+            <span class="material-symbols-outlined text-[22px] text-secondary" id="iconAdvisory">insights</span>
+            <h3 class="text-base font-bold text-white">AI 진단 알고리즘 분석 결론</h3>
           </div>
           <div class="flex items-center gap-2">
-            <span class="text-xs text-on-surface-variant">조치 우선순위:</span>
-            <span class="px-2.5 py-0.5 rounded text-xs font-bold font-mono bg-error-container text-on-error-container border border-red-500/40" id="dispPriority">
+            <span class="text-xs text-on-surface-variant">진단 상태:</span>
+            <span class="px-2.5 py-0.5 rounded text-xs font-bold font-mono bg-surface-container text-on-surface border border-outline-variant" id="dispDiagStatus">
               대기 중
             </span>
           </div>
         </div>
 
-        <div class="space-y-3 pt-1">
-          <div>
-            <div class="text-xs font-bold text-secondary mb-1 flex items-center gap-1">
-              <span class="material-symbols-outlined text-[15px]">assignment</span> 현장 권장 조치
-            </div>
-            <p class="text-sm text-on-surface leading-relaxed pl-5 bg-surface-container p-3 rounded border border-outline-variant" id="dispAction">
-              음원 분석 후 현장 매설 심도 및 수압 조건에 따른 긴급 조치 권고사항이 출력됩니다.
-            </p>
+        <div class="pt-1">
+          <div class="text-xs font-bold text-secondary mb-2 flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[16px]">analytics</span> 알고리즘 종합 요약 결론
           </div>
-
-          <div>
-            <div class="text-xs font-bold text-secondary mb-1 flex items-center gap-1">
-              <span class="material-symbols-outlined text-[15px]">description</span> 음향 분석 종합 소견
-            </div>
-            <p class="text-xs text-on-surface-variant leading-relaxed pl-5 bg-surface-container p-3 rounded border border-outline-variant" id="dispSummary">
-              음원 업로드 시 물리 음향 지표 기반의 정밀 분석 소견이 자동 생성됩니다.
-            </p>
-          </div>
+          <p class="text-sm text-on-surface leading-relaxed p-4 rounded bg-surface-container border border-outline-variant font-sans" id="dispDiagConclusion">
+            음원 업로드 시 물리 음향 지표와 AI 듀얼 판정 엔진이 도출한 핵심 결론이 표시됩니다.
+          </p>
         </div>
 
         <!-- Feedback & Copy Buttons -->
         <div class="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-outline-variant/60 mt-1">
           <div class="text-xs text-outline font-mono">
-            현장 굴착 실증 피드백 (필드 데이터셋 누적 기록)
+            현장 실증 피드백 (필드 데이터셋 누적 기록)
           </div>
           <div class="flex items-center gap-2.5">
-            <button onclick="copyAdvisory()" class="px-3 py-1.5 rounded bg-surface-container hover:bg-surface-bright text-on-surface border border-outline-variant text-xs font-semibold flex items-center gap-1.5 transition-colors">
+            <button onclick="copyConclusion()" class="px-3 py-1.5 rounded bg-surface-container hover:bg-surface-bright text-on-surface border border-outline-variant text-xs font-semibold flex items-center gap-1.5 transition-colors">
               <span class="material-symbols-outlined text-[16px]">content_copy</span>
-              소견 복사
+              결론 복사
             </button>
             <button onclick="sendFeedback('누수확인')" class="px-3.5 py-1.5 rounded bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm active:scale-[0.98] transition-all">
               <span class="material-symbols-outlined text-[16px]">check</span>
@@ -957,7 +956,7 @@ HTML_PAGE = """
             </button>
             <button onclick="sendFeedback('오탐_정상')" class="px-3.5 py-1.5 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold text-xs flex items-center gap-1.5 shadow-sm active:scale-[0.98] transition-all">
               <span class="material-symbols-outlined text-[16px]">close</span>
-              꽝 (정상이었음)
+              정상 확인
             </button>
           </div>
         </div>
@@ -1197,17 +1196,18 @@ HTML_PAGE = """
       document.getElementById('dispContinuity').innerText = `${data.continuity}%`;
       document.getElementById('dispPeakDb').innerText = `-${(32.0 - data.snr_db).toFixed(1)} dB`;
 
-      // 현장 AI 권장 조치 및 종합 소견 (우리 설명모델 문구)
-      document.getElementById('dispPriority').innerText = data.rec_priority;
+      // AI 진단 알고리즘 분석 결론 업데이트
+      const dispStatus = document.getElementById('dispDiagStatus');
+      const conclusionText = data.diag_conclusion || data.summary_desc || "진단 결과가 생성되었습니다.";
+      dispStatus.innerText = data.diag_status || (isLeak ? "누수 신호 감지 (주의)" : "정상 수류 음향 (비누수)");
       if (isLeak) {
-        document.getElementById('dispPriority').className = "px-2.5 py-0.5 rounded text-xs font-bold font-mono bg-error-container text-on-error-container border border-red-500/40";
+        dispStatus.className = "px-2.5 py-0.5 rounded text-xs font-bold font-mono bg-error-container text-on-error-container border border-red-500/40";
         document.getElementById('iconAdvisory').className = "material-symbols-outlined text-[22px] text-error";
       } else {
-        document.getElementById('dispPriority').className = "px-2.5 py-0.5 rounded text-xs font-bold font-mono bg-emerald-950 text-emerald-300 border border-emerald-500/40";
+        dispStatus.className = "px-2.5 py-0.5 rounded text-xs font-bold font-mono bg-emerald-950 text-emerald-300 border border-emerald-500/40";
         document.getElementById('iconAdvisory').className = "material-symbols-outlined text-[22px] text-emerald-400";
       }
-      document.getElementById('dispAction').innerText = data.rec_action;
-      document.getElementById('dispSummary').innerText = data.summary_desc;
+      document.getElementById('dispDiagConclusion').innerText = conclusionText;
     }
 
     // 실측 오디오 웨이브폼 바 렌더링
@@ -1224,15 +1224,16 @@ HTML_PAGE = """
       });
     }
 
-    function copyAdvisory() {
-      const act = document.getElementById('dispAction').innerText;
-      const sum = document.getElementById('dispSummary').innerText;
-      const text = `[현장 AI 권장 조치 및 종합 소견]
-- 조치 우선순위: ${document.getElementById('dispPriority').innerText}
-- 권장 조치: ${act}
-- 종합 소견: ${sum}`;
+    function copyConclusion() {
+      const status = document.getElementById('dispDiagStatus').innerText;
+      const conclusion = document.getElementById('dispDiagConclusion').innerText;
+      const fname = document.getElementById('dispFileName').innerText;
+      const text = `[AI 진단 알고리즘 분석 결론]
+- 파일명: ${fname}
+- 진단 상태: ${status}
+- 요약 결론: ${conclusion}`;
       navigator.clipboard.writeText(text).then(() => {
-        alert("현장 AI 권장 조치 및 종합 소견이 클립보드에 복사되었습니다.");
+        alert("AI 진단 알고리즘 분석 결론이 클립보드에 복사되었습니다.");
       });
     }
 
@@ -1336,8 +1337,8 @@ def diagnose():
             'continuity': res.get('continuity', 95.0),
             'pipe_spec_text': res.get('pipe_spec_text', '-'),
             'est_flow_rate': res.get('est_flow_rate', '-'),
-            'rec_priority': res.get('rec_priority', '-'),
-            'rec_action': res.get('rec_action', '-'),
+            'diag_status': res.get('diag_status', '-'),
+            'diag_conclusion': res.get('diag_conclusion', '-'),
             'summary_desc': res.get('summary_desc', '-'),
             'applied_model': res.get('적용모델', '통합 AI 엔진'),
             'plot_b64': res.get('plot_b64'),
