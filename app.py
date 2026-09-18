@@ -355,11 +355,19 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
     else:
         continuity = round(float(np.clip(18.0 + (snr_db * 0.8), 10.0, 38.0)), 1)
 
-    # 3. 배관 속성 역추정 및 분출 형태 (정상일 경우 전면 배제)
+    # 3. 배관 속성 결정 및 분출 형태 해석
+    is_mop_input = (mop_code in [1.0, 2.0])
+    is_di_input = (pipe_di > 0)
+
     if not is_leak:
         mat_disp = "해당없음 (정상 통수)"
         di_disp = "해당없음 (정상 통수)"
+        mat_desc = "정상 통수 (역추정 배제)"
+        di_desc = "정상 통수 (역추정 배제)"
+        mat_is_custom = False
+        di_is_custom = False
         leak_type_title = "해당없음 (정상)"
+        leak_type_desc = "정상 통수 (누수 없음)"
         est_flow_rate = "0.0 L/min (누수 없음)"
         diag_status = "정상 수류 음향 (비누수)"
         diag_conclusion = (
@@ -368,20 +376,47 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
             f"지면 환경 잡음으로 분석되어 관로 파손이나 누수 징후가 없습니다."
         )
     else:
-        # 누수 발생 시에만 배관 물리 속성 역추정
         feat_arr = np.array([[eff_depth, p_b1, p_b2, p_b3, p_b4, p_b5, spectral_centroid, 4000.0, peak_freq, hf_ratio]])
-        if pipe_pkg is not None:
-            try:
-                mat_pred = pipe_pkg['mat_model'].predict(feat_arr)[0]
-                mat_disp = "금속관 (DIP/강관)" if "금속" in str(mat_pred) else "플라스틱관 (PE/PVC)"
-                di_pred = pipe_pkg['di_model'].predict(feat_arr)[0]
-                di_disp = str(di_pred).replace("배관", "").strip()
-            except Exception:
-                mat_disp = "금속관"
-                di_disp = "중구경(30~80mm)"
+        
+        # 1) 배관 재질 결정: 사용자 입력이 있으면 최우선 반영, 미입력 시 AI 음향 역추정
+        if is_mop_input:
+            mat_disp = "플라스틱관 (PE/PVC)" if mop_code == 2.0 else "금속관 (주철/강관/DIP)"
+            mat_desc = "현장 입력 제원 적용"
+            mat_is_custom = True
         else:
-            mat_disp = "금속관"
-            di_disp = "중구경(30~80mm)"
+            mat_is_custom = False
+            if pipe_pkg is not None:
+                try:
+                    mat_pred = pipe_pkg['mat_model'].predict(feat_arr)[0]
+                    mat_disp = "금속관 (DIP/강관)" if "금속" in str(mat_pred) else "플라스틱관 (PE/PVC)"
+                except Exception:
+                    mat_disp = "금속관"
+            else:
+                mat_disp = "금속관"
+            mat_desc = "음향 주파수 역추정"
+
+        # 2) 배관 구경 결정: 사용자 입력이 있으면 최우선 반영, 미입력 시 AI 음향 역추정
+        if is_di_input:
+            if pipe_di < 50:
+                di_cat = "소구경"
+            elif pipe_di < 100:
+                di_cat = "중구경"
+            else:
+                di_cat = "대구경"
+            di_disp = f"{pipe_di:.0f}mm ({di_cat})"
+            di_desc = "현장 입력 제원 적용"
+            di_is_custom = True
+        else:
+            di_is_custom = False
+            if pipe_pkg is not None:
+                try:
+                    di_pred = pipe_pkg['di_model'].predict(feat_arr)[0]
+                    di_disp = str(di_pred).replace("배관", "").strip()
+                except Exception:
+                    di_disp = "중구경(30~80mm)"
+            else:
+                di_disp = "중구경(30~80mm)"
+            di_desc = "공진 대역 역추정"
 
         z_jet = 0.008 * (spectral_centroid - 600.0) + 14.0 * (hf_ratio - 0.07) + 0.18 * (p_high - 3.5)
         jet_prob = float(1.0 / (1.0 + np.exp(-np.clip(z_jet, -6.0, 6.0))) * 100.0)
@@ -399,10 +434,20 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
             leak_type_desc = "관체 파단 또는 대구경 손상으로 인한 300~700Hz 대역 대량 유출 진동음이 우세합니다."
 
         diag_status = "누수 신호 감지 (주의)"
-        model_basis = (
-            f"입력된 배관 제원({mat_disp} {di_disp}) 물리 결합 모델"
-            if pipe_leak_p is not None else "순수 음향 주파수 스펙트럼 분석 모델"
-        )
+        
+        # 적용 모델 근거 소견 조립
+        if pipe_leak_p is not None:
+            spec_parts = []
+            if is_mop_input:
+                spec_parts.append(mat_disp)
+            if is_di_input:
+                spec_parts.append(f"{pipe_di:.0f}mm")
+            spec_label = " · ".join(spec_parts) if spec_parts else f"{mat_disp} {di_disp}"
+            prefix = "현장 입력 배관 제원" if (is_mop_input or is_di_input) else "추정 배관 제원"
+            model_basis = f"{prefix}({spec_label}) 물리 결합 모델"
+        else:
+            model_basis = "순수 음향 주파수 스펙트럼 분석 모델"
+
         diag_conclusion = (
             f"AI 듀얼 판정 엔진 분석 결과, 누수 확률 {leak_p:.1f}%로 누수 의심 신호가 감지되었습니다. "
             f"중심주파수 {spectral_centroid:.0f}Hz 및 피크주파수 {peak_freq:.0f}Hz 대역에서 지속적인 고주파 방출음(지속도 {continuity}%, 고주파비 {hf_ratio:.2f})이 "
@@ -476,6 +521,10 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
         '배관결합_확률': round(pipe_leak_p, 1) if pipe_leak_p is not None else None,
         '추정_관로재질': mat_disp,
         '추정_구경범주': di_disp,
+        'mat_desc': mat_desc,
+        'di_desc': di_desc,
+        'mat_is_custom': mat_is_custom,
+        'di_is_custom': di_is_custom,
         '고주파잔존비': round(hf_ratio, 2),
         '중심주파수': round(spectral_centroid, 1),
         '피크주파수': round(peak_freq, 1),
@@ -977,72 +1026,72 @@ HTML_PAGE = """
       </section>
 
       <!-- 4-STAT BENTO GRID (물리 음향 세부 지표) -->
-      <section class="bg-surface-container-low rounded border border-outline-variant p-5 shadow-sm">
-        <div class="flex items-center justify-between pb-3 border-b border-outline-variant/70 mb-4">
+      <section class="bg-surface-container-low rounded border border-outline-variant p-4 sm:p-5 shadow-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-3 border-b border-outline-variant/70 mb-4">
           <div class="flex items-center gap-2">
             <span class="material-symbols-outlined text-primary">analytics</span>
-            <h3 class="text-base font-bold text-on-surface">물리 음향 및 배관 분석 세부 지표</h3>
+            <h3 class="text-sm sm:text-base font-bold text-on-surface">물리 음향 및 배관 분석 세부 지표</h3>
           </div>
-          <span class="text-xs text-outline font-mono">
+          <span class="text-[11px] sm:text-xs text-outline font-mono">
             * 정상 통수 판정 시 배관 속성 역추정을 배제합니다
           </span>
         </div>
 
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3.5">
           <!-- 1. 분출 형태 -->
-          <div class="bg-surface-container p-3.5 rounded border border-outline-variant flex flex-col justify-between">
-            <div class="text-xs text-on-surface-variant mb-1">분출 형태</div>
-            <div class="text-base font-bold text-on-surface font-mono truncate" id="dispLeakType">--</div>
-            <div class="text-[11px] text-outline mt-1" id="dispLeakTypeDesc">누수 판정 시에만 산출</div>
+          <div class="bg-surface-container p-3 sm:p-3.5 rounded border border-outline-variant flex flex-col justify-between min-h-[96px] sm:min-h-[105px]">
+            <div class="text-[11px] sm:text-xs text-on-surface-variant mb-1 font-medium">분출 형태</div>
+            <div class="text-sm sm:text-base font-bold text-on-surface font-mono break-keep leading-snug" id="dispLeakType">--</div>
+            <div class="text-[10px] sm:text-[11px] text-outline mt-1.5 break-keep leading-tight" id="dispLeakTypeDesc">누수 판정 시에만 산출</div>
           </div>
 
-          <!-- 2. 추정 관로 재질 -->
-          <div class="bg-surface-container p-3.5 rounded border border-outline-variant flex flex-col justify-between">
-            <div class="text-xs text-on-surface-variant mb-1">추정 관로 재질</div>
-            <div class="text-base font-bold text-secondary font-mono truncate" id="dispPipeMat">--</div>
-            <div class="text-[11px] text-outline mt-1" id="dispPipeMatDesc">누수 판정 시에만 산출</div>
+          <!-- 2. 추정/입력 관로 재질 -->
+          <div class="bg-surface-container p-3 sm:p-3.5 rounded border border-outline-variant flex flex-col justify-between min-h-[96px] sm:min-h-[105px]">
+            <div class="text-[11px] sm:text-xs text-on-surface-variant mb-1 font-medium" id="lblPipeMat">추정 관로 재질</div>
+            <div class="text-sm sm:text-base font-bold text-secondary font-mono break-keep leading-snug" id="dispPipeMat">--</div>
+            <div class="text-[10px] sm:text-[11px] text-outline mt-1.5 break-keep leading-tight" id="dispPipeMatDesc">누수 판정 시에만 산출</div>
           </div>
 
-          <!-- 3. 추정 관경 범주 -->
-          <div class="bg-surface-container p-3.5 rounded border border-outline-variant flex flex-col justify-between">
-            <div class="text-xs text-on-surface-variant mb-1">추정 관경 범주</div>
-            <div class="text-base font-bold text-tertiary font-mono truncate" id="dispPipeDia">--</div>
-            <div class="text-[11px] text-outline mt-1" id="dispPipeDiaDesc">누수 판정 시에만 산출</div>
+          <!-- 3. 추정/입력 관경 범주 -->
+          <div class="bg-surface-container p-3 sm:p-3.5 rounded border border-outline-variant flex flex-col justify-between min-h-[96px] sm:min-h-[105px]">
+            <div class="text-[11px] sm:text-xs text-on-surface-variant mb-1 font-medium" id="lblPipeDia">추정 관경 범주</div>
+            <div class="text-sm sm:text-base font-bold text-tertiary font-mono break-keep leading-snug" id="dispPipeDia">--</div>
+            <div class="text-[10px] sm:text-[11px] text-outline mt-1.5 break-keep leading-tight" id="dispPipeDiaDesc">누수 판정 시에만 산출</div>
           </div>
 
           <!-- 4. 추정 누수량 -->
-          <div class="bg-surface-container p-3.5 rounded border border-outline-variant flex flex-col justify-between">
-            <div class="text-xs text-on-surface-variant mb-1">추정 누수량</div>
-            <div class="text-base font-bold text-error font-mono truncate" id="dispFlowRate">--</div>
-            <div class="text-[11px] text-outline mt-1" id="dispFlowDesc">정상 시 0.0 L/min</div>
+          <div class="bg-surface-container p-3 sm:p-3.5 rounded border border-outline-variant flex flex-col justify-between min-h-[96px] sm:min-h-[105px]">
+            <div class="text-[11px] sm:text-xs text-on-surface-variant mb-1 font-medium">추정 누수량</div>
+            <div class="text-sm sm:text-base font-bold text-error font-mono break-keep leading-snug" id="dispFlowRate">--</div>
+            <div class="text-[10px] sm:text-[11px] text-outline mt-1.5 break-keep leading-tight" id="dispFlowDesc">정상 시 0.0 L/min</div>
           </div>
 
           <!-- 5. 신호 대 잡음비 (SNR) -->
-          <div class="bg-surface-container p-3.5 rounded border border-outline-variant flex flex-col justify-between">
-            <div class="text-xs text-on-surface-variant mb-1">신호 대 잡음비 (SNR)</div>
-            <div class="text-lg font-bold text-on-surface font-mono" id="dispSnr">-- dB</div>
-            <div class="text-[11px] text-emerald-400 font-semibold mt-1">실측값</div>
+          <div class="bg-surface-container p-3 sm:p-3.5 rounded border border-outline-variant flex flex-col justify-between min-h-[96px] sm:min-h-[105px]">
+            <div class="text-[11px] sm:text-xs text-on-surface-variant mb-1 font-medium">신호 대 잡음비 (SNR)</div>
+            <div class="text-base sm:text-lg font-bold text-on-surface font-mono" id="dispSnr">-- dB</div>
+            <div class="text-[10px] sm:text-[11px] text-emerald-400 font-semibold mt-1.5">실측값</div>
           </div>
 
           <!-- 6. 주요 피크 주파수 -->
-          <div class="bg-surface-container p-3.5 rounded border border-outline-variant flex flex-col justify-between">
-            <div class="text-xs text-on-surface-variant mb-1">주요 피크 주파수</div>
-            <div class="text-lg font-bold text-secondary font-mono" id="dispPeakFreq">-- Hz</div>
-            <div class="text-[11px] text-on-surface-variant mt-1">Welch PSD 최대치</div>
+          <div class="bg-surface-container p-3 sm:p-3.5 rounded border border-outline-variant flex flex-col justify-between min-h-[96px] sm:min-h-[105px]">
+            <div class="text-[11px] sm:text-xs text-on-surface-variant mb-1 font-medium">주요 피크 주파수</div>
+            <div class="text-base sm:text-lg font-bold text-secondary font-mono" id="dispPeakFreq">-- Hz</div>
+            <div class="text-[10px] sm:text-[11px] text-on-surface-variant mt-1.5">Welch PSD 최대치</div>
           </div>
 
           <!-- 7. 고주파 잔존비 -->
-          <div class="bg-surface-container p-3.5 rounded border border-outline-variant flex flex-col justify-between">
-            <div class="text-xs text-on-surface-variant mb-1">고주파 잔존비</div>
-            <div class="text-lg font-bold text-tertiary font-mono" id="dispHfRatio">--</div>
-            <div class="text-[11px] text-on-surface-variant mt-1">1.5k~4k / 300~700</div>
+          <div class="bg-surface-container p-3 sm:p-3.5 rounded border border-outline-variant flex flex-col justify-between min-h-[96px] sm:min-h-[105px]">
+            <div class="text-[11px] sm:text-xs text-on-surface-variant mb-1 font-medium">고주파 잔존비</div>
+            <div class="text-base sm:text-lg font-bold text-tertiary font-mono" id="dispHfRatio">--</div>
+            <div class="text-[10px] sm:text-[11px] text-on-surface-variant mt-1.5">1.5k~4k / 300~700</div>
           </div>
 
           <!-- 8. 음향 지속성 -->
-          <div class="bg-surface-container p-3.5 rounded border border-outline-variant flex flex-col justify-between">
-            <div class="text-xs text-on-surface-variant mb-1">음향 지속성 (Continuity)</div>
-            <div class="text-lg font-bold text-on-surface font-mono" id="dispContinuity">--%</div>
-            <div class="text-[11px] text-outline mt-1">연속 분출 신호율</div>
+          <div class="bg-surface-container p-3 sm:p-3.5 rounded border border-outline-variant flex flex-col justify-between min-h-[96px] sm:min-h-[105px]">
+            <div class="text-[11px] sm:text-xs text-on-surface-variant mb-1 font-medium">음향 지속성 (Continuity)</div>
+            <div class="text-base sm:text-lg font-bold text-on-surface font-mono" id="dispContinuity">--%</div>
+            <div class="text-[10px] sm:text-[11px] text-outline mt-1.5">연속 분출 신호율</div>
           </div>
         </div>
       </section>
@@ -1233,14 +1282,12 @@ HTML_PAGE = """
       }
     }
 
-    async function handleFileSelect(e) {
-      const file = e.target.files[0];
-      if (!file) return;
+    let currentFileObj = null;
 
-      audio.src = URL.createObjectURL(file);
-      document.getElementById('dispFileName').innerText = file.name;
-      document.getElementById('dispAudioTag').innerText = "LOADED";
-      
+    async function runDiagnosis(file) {
+      if (!file) return;
+      currentFileObj = file;
+
       const mop = document.getElementById('inpMop').value;
       const dia = document.getElementById('inpDia').value || "-1.0";
       const pre = document.getElementById('inpPre').value || "-1.0";
@@ -1271,6 +1318,17 @@ HTML_PAGE = """
         document.getElementById('loadingOverlay').classList.add('hidden');
         alert("통신 오류: " + err.message);
       }
+    }
+
+    async function handleFileSelect(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      audio.src = URL.createObjectURL(file);
+      document.getElementById('dispFileName').innerText = file.name;
+      document.getElementById('dispAudioTag').innerText = "LOADED";
+      
+      await runDiagnosis(file);
     }
 
     function updateUI(data) {
@@ -1343,15 +1401,26 @@ HTML_PAGE = """
         document.getElementById('plotPlaceholder').classList.add('hidden');
       }
 
-      // 물리 음향 및 배관 세부 지표 (정상 시 배관 추정 안 함)
+      // 물리 음향 및 배관 세부 지표
       document.getElementById('dispLeakType').innerText = data.분출형태 || (isLeak ? "고속 제트 분출" : "해당없음 (정상)");
       document.getElementById('dispLeakTypeDesc').innerText = isLeak ? "주파수 대역비 산출" : "정상 통수 (누수 없음)";
 
+      // 사용자가 직접 입력한 배관 인자가 있으면 라벨을 '입력'으로 변경하고 현장 입력값 우선 표시
+      const lblMat = document.getElementById('lblPipeMat');
+      const lblDia = document.getElementById('lblPipeDia');
+
+      if (lblMat) {
+        lblMat.innerText = data.mat_is_custom ? "배관 관종 (입력)" : "추정 관로 재질";
+      }
+      if (lblDia) {
+        lblDia.innerText = data.di_is_custom ? "배관 구경 (입력)" : "추정 관경 범주";
+      }
+
       document.getElementById('dispPipeMat').innerText = data.pipe_material || (isLeak ? "금속관" : "해당없음 (정상)");
-      document.getElementById('dispPipeMatDesc').innerText = isLeak ? "고주파 잔존비 역추정" : "정상 통수 (역추정 배제)";
+      document.getElementById('dispPipeMatDesc').innerText = data.mat_desc || (isLeak ? "현장 제원 또는 음향 역추정" : "정상 통수 (역추정 배제)");
 
       document.getElementById('dispPipeDia').innerText = data.pipe_diameter || (isLeak ? "중구경" : "해당없음 (정상)");
-      document.getElementById('dispPipeDiaDesc').innerText = isLeak ? "공진 대역 산출" : "정상 통수 (역추정 배제)";
+      document.getElementById('dispPipeDiaDesc').innerText = data.di_desc || (isLeak ? "현장 제원 또는 음향 역추정" : "정상 통수 (역추정 배제)");
 
       document.getElementById('dispFlowRate').innerText = data.est_flow_rate;
       document.getElementById('dispFlowDesc').innerText = isLeak ? "수압/관경 기준 유출량" : "유출 없음";
@@ -1503,6 +1572,18 @@ HTML_PAGE = """
     // 초기 로딩: 기본값은 무조건 'mobile' (모바일 우선 로드)
     const initialViewMode = localStorage.getItem('seoyoung_view_mode') || 'mobile';
     setViewMode(initialViewMode);
+
+    // 현장 배관 파라미터 변경 시 현재 음원 자동 즉시 재진단 연동
+    ['inpMop', 'inpDia', 'inpPre', 'inpDp'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('change', () => {
+          if (currentFileObj) {
+            runDiagnosis(currentFileObj);
+          }
+        });
+      }
+    });
   </script>
 </body>
 </html>
@@ -1571,6 +1652,10 @@ def diagnose():
             'pipe_prob': res.get('배관결합_확률'),
             'pipe_material': res.get('추정_관로재질', '-'),
             'pipe_diameter': res.get('추정_구경범주', '-'),
+            'mat_desc': res.get('mat_desc', '-'),
+            'di_desc': res.get('di_desc', '-'),
+            'mat_is_custom': res.get('mat_is_custom', False),
+            'di_is_custom': res.get('di_is_custom', False),
             'hf_ratio': res.get('고주파잔존비', 0.0),
             'peak_freq': res.get('피크주파수', 0.0),
             'snr_db': res.get('snr_db', 18.0),
