@@ -922,7 +922,7 @@ HTML_PAGE = """
             <h3 class="text-base font-bold text-on-surface">음향 스펙트로그램 & PSD 정밀 시각화</h3>
           </div>
           <span class="text-xs text-outline font-mono">
-            STFT 2D Spectrogram · Welch PSD · AI Dual Probability
+            음향 주파수 스펙트럼 및 다차원 신호 분석
           </span>
         </div>
 
@@ -931,7 +931,7 @@ HTML_PAGE = """
           <img id="imgSpectrogram" class="w-full h-auto rounded shadow-lg hidden" alt="음향 스펙트로그램 및 PSD 시각화">
           <div id="plotPlaceholder" class="text-center py-16 text-outline">
             <span class="material-symbols-outlined text-4xl mb-2 text-outline/50">analytics</span>
-            <p class="text-xs">음원을 업로드하면 2D Mel-스펙트로그램과 Welch PSD 실측 곡선이 생성됩니다.</p>
+            <p class="text-xs">음원을 업로드하면 정밀 주파수 스펙트럼과 물리 음향 분석 곡선이 생성됩니다.</p>
           </div>
         </div>
       </section>
@@ -1074,8 +1074,8 @@ HTML_PAGE = """
       <span class="material-symbols-outlined text-secondary text-2xl">equalizer</span>
     </div>
     <div class="text-center">
-      <div class="text-sm font-bold text-white tracking-wide">실측 물리 음향 정밀 분석 중</div>
-      <div class="text-xs text-on-surface-variant mt-1 font-mono">2D Mel-스펙트로그램 렌더링 · Welch PSD 역산 · 듀얼 AI 판정</div>
+      <div class="text-sm font-bold text-white tracking-wide">누수음 정밀 진단 분석 중</div>
+      <div class="text-xs text-on-surface-variant mt-1.5 font-sans">서용엔지니어링 AI 엔진이 음향 신호를 정밀 분석하고 있습니다...</div>
     </div>
   </div>
 
