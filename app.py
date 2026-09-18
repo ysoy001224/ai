@@ -96,8 +96,6 @@ def load_audio_signal(file_path, target_sr=8000):
             sr, raw_y = wavfile.read(file_path)
             if raw_y.ndim > 1: raw_y = np.mean(raw_y, axis=1)
             y = raw_y.astype(np.float32)
-            max_val = np.max(np.abs(y))
-            if max_val > 1.0: y = y / (max_val + 1e-6)
             if sr != target_sr:
                 new_len = int(round(len(y) * float(target_sr) / float(sr)))
                 indices = np.linspace(0, len(y) - 1, new_len)
@@ -119,8 +117,6 @@ def load_audio_signal(file_path, target_sr=8000):
             out, _ = p.communicate()
             if p.returncode == 0 and len(out) > 0:
                 raw_y = np.frombuffer(out, dtype=np.int16).astype(np.float32)
-                max_val = np.max(np.abs(raw_y))
-                if max_val > 0: raw_y = raw_y / 32768.0
                 return raw_y, target_sr
         except Exception:
             pass
