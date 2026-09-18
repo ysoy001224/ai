@@ -662,11 +662,33 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
         except Exception:
             pass
 
+    if is_leak:
+        basis_tag = "현장 입력 배관 제원 적용" if (mat_is_custom or di_is_custom) else "순수 음향 역추정 제원"
+        prof_final_title = f"[누수 감지 확진] {mat_disp} {di_disp} · {prof_step2_title}"
+        prof_final_desc = (
+            f"앞단 0.0~1.5초 접촉 충격 노이즈를 배제한 정상상태 음향(1.5~{dur:.1f}초 중 {steady_dur}초)을 정밀 분석한 결과, "
+            f"누수 확률 {leak_p:.1f}%로 누수가 확진되었습니다. "
+            f"{basis_tag} 기준으로 1,500Hz 이상 고주파 분출음과 {mat_disp} 관벽 전달 특성이 뚜렷하며, "
+            f"{di_disp} 고유 공진 대역과 일치하여 신속한 현장 확인 및 보수가 요구됩니다."
+        )
+        prof_final_badge = "누수 감지 확진"
+    else:
+        prof_final_title = "[정상 통수 확인] 이상 징후 없음 (정상 수류음)"
+        prof_final_desc = (
+            f"앞단 0.0~1.5초 접촉 노이즈를 배제한 정상상태 음향을 정밀 분석한 결과, "
+            f"누수 확률 {leak_p:.1f}%(비누수 {100.0 - leak_p:.1f}%)로 규칙적인 관내 정상 통수음으로 판정되었습니다. "
+            f"1,500Hz 이상 고주파 분출 마찰음이나 관체 이상 공진 진동이 감지되지 않아 관로 파손 위험이 없는 안전 상태입니다."
+        )
+        prof_final_badge = "정상 통수 (안전)"
+
     pipe_profiler_report = {
         'status': 'success',
         'is_leak': is_leak,
         'truncated_note': truncated_note,
         'steady_dur': steady_dur,
+        'final_title': prof_final_title,
+        'final_desc': prof_final_desc,
+        'final_badge': prof_final_badge,
         'step1': {
             'decision': "누수 감지" if is_leak else "정상 통수",
             'leak_prob': round(leak_p, 1),
@@ -1588,6 +1610,45 @@ HTML_PAGE = """
 
         </div> <!-- end 4-step grid -->
 
+        <!-- 5. 최종 분석 결과 (Comprehensive Summary Card) -->
+        <section class="bg-surface-container-low rounded border border-outline-variant p-4 sm:p-5 shadow-sm">
+          <div class="flex items-center justify-between pb-2.5 border-b border-outline-variant/60 mb-3 gap-2">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-secondary text-[22px]">assignment_turned_in</span>
+              <h3 class="text-sm sm:text-base font-bold text-white whitespace-nowrap">최종 분석 결과</h3>
+            </div>
+            <span id="profFinalBadge" class="px-2.5 py-0.5 rounded text-xs font-bold font-mono bg-surface-container text-outline border border-outline-variant whitespace-nowrap shrink-0">
+              대기 중
+            </span>
+          </div>
+
+          <div class="p-3.5 sm:p-4 rounded-xl bg-surface-container border border-outline-variant flex flex-col gap-2.5">
+            <div class="flex items-center gap-2">
+              <span id="profFinalIcon" class="material-symbols-outlined text-secondary text-[20px]">info</span>
+              <h4 id="profFinalTitle" class="text-sm sm:text-base font-bold text-white">음원 분석 대기 중</h4>
+            </div>
+            <p id="profFinalDesc" class="text-xs sm:text-sm text-on-surface-variant leading-relaxed font-sans">
+              음원을 업로드하면 1.5초 접촉 충격 노이즈를 배제한 순수 정상상태 음향 분석과 4단계 설명 모델의 종합 결론이 이곳에 도출됩니다.
+            </p>
+            
+            <!-- 4대 요약 메트릭 태그 리스트 -->
+            <div id="profFinalTags" class="flex flex-wrap gap-2 pt-2 border-t border-outline-variant/40 text-xs font-mono">
+              <div class="px-2.5 py-1 rounded bg-surface-container-high border border-outline-variant text-on-surface flex items-center gap-1.5">
+                <span class="text-outline">판정:</span> <span id="profTagDecision" class="font-bold text-white">--</span>
+              </div>
+              <div class="px-2.5 py-1 rounded bg-surface-container-high border border-outline-variant text-on-surface flex items-center gap-1.5">
+                <span class="text-outline">형태:</span> <span id="profTagType" class="font-bold text-tertiary">--</span>
+              </div>
+              <div class="px-2.5 py-1 rounded bg-surface-container-high border border-outline-variant text-on-surface flex items-center gap-1.5">
+                <span class="text-outline">관종:</span> <span id="profTagMat" class="font-bold text-secondary">--</span>
+              </div>
+              <div class="px-2.5 py-1 rounded bg-surface-container-high border border-outline-variant text-on-surface flex items-center gap-1.5">
+                <span class="text-outline">관경:</span> <span id="profTagDi" class="font-bold text-amber-300">--</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
       </div> <!-- end tabViewProfiler -->
 
     </main>
@@ -2046,6 +2107,41 @@ HTML_PAGE = """
           }
         }
       }
+
+      // 최종 분석 결과 종합 카드 갱신
+      if (prof.final_title) {
+        const fTitle = document.getElementById('profFinalTitle');
+        const fDesc = document.getElementById('profFinalDesc');
+        if (fTitle) fTitle.innerText = prof.final_title;
+        if (fDesc) fDesc.innerText = prof.final_desc;
+
+        const bFinal = document.getElementById('profFinalBadge');
+        if (bFinal) {
+          bFinal.innerText = prof.final_badge;
+          if (prof.is_leak) {
+            bFinal.className = "px-2.5 py-0.5 rounded text-xs font-bold font-mono bg-error-container text-on-error-container border border-red-500/40 whitespace-nowrap shrink-0";
+            const icon = document.getElementById('profFinalIcon');
+            if (icon) icon.className = "material-symbols-outlined text-rose-400 text-[20px]";
+          } else {
+            bFinal.className = "px-2.5 py-0.5 rounded text-xs font-bold font-mono bg-emerald-950 text-emerald-300 border border-emerald-500/40 whitespace-nowrap shrink-0";
+            const icon = document.getElementById('profFinalIcon');
+            if (icon) icon.className = "material-symbols-outlined text-emerald-400 text-[20px]";
+          }
+        }
+
+        if (prof.step1 && document.getElementById('profTagDecision')) {
+          document.getElementById('profTagDecision').innerText = `${prof.step1.decision} (${prof.step1.leak_prob}%)`;
+        }
+        if (prof.step2 && document.getElementById('profTagType')) {
+          document.getElementById('profTagType').innerText = prof.step2.title;
+        }
+        if (prof.step3 && document.getElementById('profTagMat')) {
+          document.getElementById('profTagMat').innerText = prof.step3.material;
+        }
+        if (prof.step4 && document.getElementById('profTagDi')) {
+          document.getElementById('profTagDi').innerText = prof.step4.diameter;
+        }
+      }
     }
 
     function copyProfilerReport() {
@@ -2061,7 +2157,11 @@ HTML_PAGE = """
 - STEP 1 (누수 판정): ${p.step1.decision} (누수율 ${p.step1.leak_prob}%)
 - STEP 2 (분출 형태): ${p.step2.title} (${p.step2.desc})
 - STEP 3 (관로 재질): ${p.step3.material} (금속 ${p.step3.metal_prob}% vs 비금속 ${p.step3.nonmetal_prob}%)
-- STEP 4 (관로 관경): ${p.step4.diameter} (${p.step4.status_desc})`;
+- STEP 4 (관로 관경): ${p.step4.diameter} (${p.step4.status_desc})
+
+[최종 분석 결과]
+${p.final_title || ''}
+${p.final_desc || ''}`;
       navigator.clipboard.writeText(text).then(() => {
         alert("배관속성 정밀 추정 리포트가 클립보드에 복사되었습니다.");
       });
