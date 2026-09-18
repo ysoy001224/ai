@@ -219,9 +219,9 @@ def generate_spectrogram_plot_b64(raw_audio, sr, dur, fname, is_leak, f, psd_cal
     ax_mel.set_ylabel("주파수 (Hz)", color='#8FA8D6', fontsize=8)
 
     # 2. 직관형 음향 스펙트럼 (위험 대역 구획)
-    ax_psd.axvspan(0, 300, color='#64748B', alpha=0.18, label='환경 잡음 대역')
-    ax_psd.axvspan(300, 1500, color='#00E3FD', alpha=0.12, label='관체 진동 대역')
-    ax_psd.axvspan(1500, 4000, color='#F87171', alpha=0.20, label='누수 분출 위험 대역')
+    ax_psd.axvspan(0, 300, color='#64748B', alpha=0.18, label='저주파 (환경음/대구경관)')
+    ax_psd.axvspan(300, 1500, color='#00E3FD', alpha=0.12, label='중주파 (관체진동/공진)')
+    ax_psd.axvspan(1500, 4000, color='#F87171', alpha=0.20, label='고주파 (누수제트/분출)')
     ax_psd.plot(f, psd_calib, color='#FFFFFF', lw=1.6, label='음향 스펙트럼')
     peak_y = float(np.interp(peak_freq, f, psd_calib))
     ax_psd.plot(peak_freq, peak_y, 'o', color='#FBBF24', markersize=5.5, label=f'피크 {peak_freq:.0f}Hz')
