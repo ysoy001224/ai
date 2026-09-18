@@ -1277,7 +1277,7 @@ HTML_PAGE = """
           </span>
         </div>
 
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3.5">
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-3.5">
           <!-- 1. 분출 형태 -->
           <div class="bg-surface-container p-3 sm:p-3.5 rounded border border-outline-variant flex flex-col justify-between min-h-[96px] sm:min-h-[105px]">
             <div class="text-[11px] sm:text-xs text-on-surface-variant mb-1 font-medium">분출 형태</div>
@@ -1299,39 +1299,25 @@ HTML_PAGE = """
             <div class="text-[10px] sm:text-[11px] text-outline mt-1.5 break-keep leading-tight" id="dispPipeDiaDesc">누수 판정 시에만 산출</div>
           </div>
 
-          <!-- 4. 추정 누수량 -->
-          <div class="bg-surface-container p-3 sm:p-3.5 rounded border border-outline-variant flex flex-col justify-between min-h-[96px] sm:min-h-[105px]">
-            <div class="text-[11px] sm:text-xs text-on-surface-variant mb-1 font-medium">추정 누수량</div>
-            <div class="text-sm sm:text-base font-bold text-error font-mono break-keep leading-snug" id="dispFlowRate">--</div>
-            <div class="text-[10px] sm:text-[11px] text-outline mt-1.5 break-keep leading-tight" id="dispFlowDesc">정상 시 0.0 L/min</div>
-          </div>
-
-          <!-- 5. 신호 대 잡음비 (SNR) -->
+          <!-- 4. 신호 대 잡음비 (SNR) -->
           <div class="bg-surface-container p-3 sm:p-3.5 rounded border border-outline-variant flex flex-col justify-between min-h-[96px] sm:min-h-[105px]">
             <div class="text-[11px] sm:text-xs text-on-surface-variant mb-1 font-medium">신호 대 잡음비 (SNR)</div>
             <div class="text-base sm:text-lg font-bold text-on-surface font-mono" id="dispSnr">-- dB</div>
             <div class="text-[10px] sm:text-[11px] text-emerald-400 font-semibold mt-1.5">실측값</div>
           </div>
 
-          <!-- 6. 주요 피크 주파수 -->
+          <!-- 5. 주요 피크 주파수 -->
           <div class="bg-surface-container p-3 sm:p-3.5 rounded border border-outline-variant flex flex-col justify-between min-h-[96px] sm:min-h-[105px]">
             <div class="text-[11px] sm:text-xs text-on-surface-variant mb-1 font-medium">주요 피크 주파수</div>
             <div class="text-base sm:text-lg font-bold text-secondary font-mono" id="dispPeakFreq">-- Hz</div>
             <div class="text-[10px] sm:text-[11px] text-on-surface-variant mt-1.5">Welch PSD 최대치</div>
           </div>
 
-          <!-- 7. 고주파 잔존비 -->
+          <!-- 6. 고주파 잔존비 -->
           <div class="bg-surface-container p-3 sm:p-3.5 rounded border border-outline-variant flex flex-col justify-between min-h-[96px] sm:min-h-[105px]">
             <div class="text-[11px] sm:text-xs text-on-surface-variant mb-1 font-medium">고주파 잔존비</div>
             <div class="text-base sm:text-lg font-bold text-tertiary font-mono" id="dispHfRatio">--</div>
             <div class="text-[10px] sm:text-[11px] text-on-surface-variant mt-1.5">1.5k~4k / 300~700</div>
-          </div>
-
-          <!-- 8. 음향 지속성 -->
-          <div class="bg-surface-container p-3 sm:p-3.5 rounded border border-outline-variant flex flex-col justify-between min-h-[96px] sm:min-h-[105px]">
-            <div class="text-[11px] sm:text-xs text-on-surface-variant mb-1 font-medium">음향 지속성 (Continuity)</div>
-            <div class="text-base sm:text-lg font-bold text-on-surface font-mono" id="dispContinuity">--%</div>
-            <div class="text-[10px] sm:text-[11px] text-outline mt-1.5">연속 분출 신호율</div>
           </div>
         </div>
       </section>
@@ -1923,13 +1909,9 @@ HTML_PAGE = """
       document.getElementById('dispPipeDia').innerText = data.pipe_diameter || (isLeak ? "중구경" : "해당없음 (정상)");
       document.getElementById('dispPipeDiaDesc').innerText = data.di_desc || (isLeak ? "현장 제원 또는 음향 역추정" : "정상 통수 (역추정 배제)");
 
-      document.getElementById('dispFlowRate').innerText = data.est_flow_rate;
-      document.getElementById('dispFlowDesc').innerText = isLeak ? "수압/관경 기준 유출량" : "유출 없음";
-
       document.getElementById('dispSnr').innerText = `${data.snr_db} dB`;
       document.getElementById('dispPeakFreq').innerText = `${Math.round(data.peak_freq)} Hz`;
       document.getElementById('dispHfRatio').innerText = `${data.hf_ratio}`;
-      document.getElementById('dispContinuity').innerText = `${data.continuity}%`;
       document.getElementById('dispPeakDb').innerText = `-${(32.0 - data.snr_db).toFixed(1)} dB`;
 
       // AI 진단 알고리즘 분석 결론 업데이트
