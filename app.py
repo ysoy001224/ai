@@ -1369,6 +1369,37 @@ HTML_PAGE = """
       <!-- ==================== TAB 2: 배관 속성 정밀 추정 뷰 (1.5초 과도충격음 배제 설명모델) ==================== -->
       <div id="tabViewProfiler" class="hidden flex flex-col gap-4 lg:gap-5">
         
+        <!-- PRIMARY UPLOAD DROPZONE BANNER (원터치 & 드래그 앤 드롭 대형 업로드 존) -->
+        <div onclick="document.getElementById('fileInput').click()" 
+             ondragover="event.preventDefault(); this.classList.add('border-secondary', 'bg-surface-container-high');"
+             ondragleave="this.classList.remove('border-secondary', 'bg-surface-container-high');"
+             ondrop="handleFileDrop(event)"
+             class="w-full bg-surface-container-low hover:bg-surface-container border-2 border-dashed border-secondary/50 hover:border-secondary rounded-xl p-3.5 sm:p-5 flex items-center justify-between gap-3 cursor-pointer transition-all duration-200 shadow-md group active:scale-[0.99]">
+          <div class="flex items-center gap-3 min-w-0 flex-1">
+            <div class="w-11 h-11 rounded-xl bg-primary-container/20 group-hover:bg-primary-container text-secondary group-hover:text-white flex items-center justify-center transition-colors shadow-inner shrink-0">
+              <span class="material-symbols-outlined text-2xl">cloud_upload</span>
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                <h3 class="text-sm sm:text-base font-bold text-white group-hover:text-secondary transition-colors whitespace-nowrap">
+                  음원 파일 업로드 및 진단
+                </h3>
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-secondary/15 text-secondary border border-secondary/30 whitespace-nowrap shrink-0">
+                  터치 선택
+                </span>
+              </div>
+              <p class="text-xs text-on-surface-variant mt-0.5 truncate whitespace-nowrap">
+                탭하거나 파일을 끌어다 놓으세요 (WAV, MP4 지원)
+              </p>
+            </div>
+          </div>
+          <div class="shrink-0 hidden md:block">
+            <button type="button" class="px-4 py-2 rounded-lg bg-primary-container group-hover:bg-primary-container/90 text-white text-xs font-bold flex items-center gap-1.5 shadow-md pointer-events-none whitespace-nowrap">
+              <span class="material-symbols-outlined text-[16px]">file_open</span> 파일 선택
+            </button>
+          </div>
+        </div>
+
         <!-- 개요 배너: 1.5초 과도 충격음 제거 알고리즘 -->
         <section class="bg-surface-container-low rounded border border-secondary/30 p-4 sm:p-5 shadow-sm relative overflow-hidden">
           <div class="absolute -right-8 -top-8 w-40 h-40 rounded-full bg-secondary/5 blur-2xl pointer-events-none"></div>
@@ -1381,7 +1412,7 @@ HTML_PAGE = """
                   <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-primary-container/40 text-primary border border-primary/40">1.5s Impact Truncated</span>
                 </h2>
                 <p class="text-xs text-on-surface-variant mt-0.5">
-                  탐사봉 접촉 시 발생하는 앞단 0.0~1.5초 충격 노이즈를 배제하고, 순수 정상상태(Steady-State) 음향만을 슬라이스하여 토양 심도 지수 감쇠 역보정을 적용한 설명모델입니다.
+                  탐사봉 접촉 시 발생하는 앞단 0.0~1.5초 충격 노이즈를 배제하고, 순수 정상상태(Steady-State) 음향만을 정밀 슬라이스하여 분석하는 설명모델입니다.
                 </p>
               </div>
             </div>
@@ -1398,10 +1429,6 @@ HTML_PAGE = """
             <div class="px-2.5 py-1 rounded bg-surface-container border border-outline-variant text-secondary flex items-center gap-1.5">
               <span class="material-symbols-outlined text-[14px]">content_cut</span>
               <span id="profTruncNote">0.0~1.5초 충격음 배제 완료 (1.5~5.5초 정상상태 분석)</span>
-            </div>
-            <div class="px-2.5 py-1 rounded bg-surface-container border border-outline-variant text-tertiary flex items-center gap-1.5">
-              <span class="material-symbols-outlined text-[14px]">layers</span>
-              <span id="profDepthNote">토양 감쇠 역보정 식 (α_soil = 0.0004 × f × Δd) 적용</span>
             </div>
           </div>
         </section>
@@ -2055,8 +2082,7 @@ HTML_PAGE = """
 - STEP 1 (누수 판정): ${p.step1.decision} (누수율 ${p.step1.leak_prob}%)
 - STEP 2 (분출 형태): ${p.step2.title} (${p.step2.desc})
 - STEP 3 (관로 재질): ${p.step3.material} (금속 ${p.step3.metal_prob}% vs 비금속 ${p.step3.nonmetal_prob}%)
-- STEP 4 (관로 관경): ${p.step4.diameter} (${p.step4.status_desc})
-- 토양 감쇠: ${p.step4.depth_note}`;
+- STEP 4 (관로 관경): ${p.step4.diameter} (${p.step4.status_desc})`;
       navigator.clipboard.writeText(text).then(() => {
         alert("배관속성 정밀 추정 리포트가 클립보드에 복사되었습니다.");
       });
