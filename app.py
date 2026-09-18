@@ -2578,11 +2578,11 @@ ${p.final_desc || ''}`;
         btnM.className = "px-2 sm:px-2.5 py-1 rounded text-xs font-bold flex items-center gap-1 transition-all bg-primary-container text-white shadow-sm";
         btnP.className = "px-2 sm:px-2.5 py-1 rounded text-xs font-medium flex items-center gap-1 transition-all text-on-surface-variant hover:text-on-surface";
       }
-      localStorage.setItem('seoyoung_view_mode', mode);
+      localStorage.setItem('seoyong_view_mode', mode);
     }
 
     // 초기 로딩: 기본값은 무조건 'mobile' (모바일 우선 로드)
-    const initialViewMode = localStorage.getItem('seoyoung_view_mode') || 'mobile';
+    const initialViewMode = localStorage.getItem('seoyong_view_mode') || 'mobile';
     setViewMode(initialViewMode);
 
     // 현장 배관 파라미터 변경 시 현재 음원 자동 즉시 재진단 연동

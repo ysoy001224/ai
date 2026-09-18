@@ -12,7 +12,7 @@
  1. https://huggingface.co 회원가입 및 로그인 (무료)
  2. 우측 상단 프로필 클릭 -> [New Space] 선택
  3. Space 설정:
-    - Space name: seoyoung-leak-ai (원하는 영문 이름)
+    - Space name: seoyong-leak-ai (원하는 영문 이름)
     - License: MIT 또는 Apache 2.0
     - Space SDK: [Docker] 선택  <-- 중요! (Blank Docker 선택)
     - Space Hardware: Free (CPU basic, 2 vCPU, 16GB RAM) - 무료 선택
