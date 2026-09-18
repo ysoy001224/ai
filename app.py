@@ -630,7 +630,10 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
             prof_mat_metal_p = round(float(adj_mat_probs[metal_idx] * 100.0), 1)
             prof_mat_nonmetal_p = round(float(adj_mat_probs[nonmetal_idx] * 100.0), 1)
             diff_m = abs(prof_mat_metal_p - prof_mat_nonmetal_p)
-            if prof_mat_metal_p >= prof_mat_nonmetal_p:
+            if mat_is_custom:
+                fit_p = prof_mat_metal_p if '금속' in mat_disp else prof_mat_nonmetal_p
+                prof_mat_status = f"입력 제원({mat_disp}) 물리 음향 정합도 {fit_p}%"
+            elif prof_mat_metal_p >= prof_mat_nonmetal_p:
                 prof_mat_status = f"금속관 우세 (확률 {prof_mat_metal_p}%, 비금속 대비 +{diff_m:.1f}%p)"
             else:
                 prof_mat_status = f"비금속관(플라스틱) 우세 (확률 {prof_mat_nonmetal_p}%, 금속 대비 +{diff_m:.1f}%p)"
@@ -641,7 +644,10 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
             sorted_di = sorted(prof_di_dict.items(), key=lambda x: x[1], reverse=True)
             top1_di, top1_p = sorted_di[0]
             top2_di, top2_p = sorted_di[1]
-            prof_di_status = f"{top1_di} 우세 (확률 {top1_p}%, 차순위 대비 +{round(top1_p - top2_p, 1)}%p)"
+            if di_is_custom:
+                prof_di_status = f"입력 제원({di_disp}) 음향 공진 정합도 검증 완료"
+            else:
+                prof_di_status = f"{top1_di} 우세 (확률 {top1_p}%, 차순위 대비 +{round(top1_p - top2_p, 1)}%p)"
 
             feat_dict = {
                 'depth_m': eff_depth,
@@ -1493,7 +1499,7 @@ HTML_PAGE = """
               <div class="flex items-center justify-between pb-2 border-b border-outline-variant/60 mb-3 gap-2">
                 <div class="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
                   <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-secondary/20 text-secondary border border-secondary/40 font-bold shrink-0">STEP 3</span>
-                  <span class="text-xs font-bold text-secondary whitespace-nowrap">배관 관로 재질 역추정</span>
+                  <span id="profStep3Title" class="text-xs font-bold text-secondary whitespace-nowrap">배관 관로 재질 역추정</span>
                 </div>
                 <span id="profStep3Mat" class="px-2 py-0.5 rounded text-xs font-bold font-mono bg-surface-container text-secondary border border-secondary/40 whitespace-nowrap shrink-0">
                   대기 중
@@ -1545,7 +1551,7 @@ HTML_PAGE = """
               <div class="flex items-center justify-between pb-2 border-b border-outline-variant/60 mb-3 gap-2">
                 <div class="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
                   <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-tertiary/20 text-tertiary border border-tertiary/40 font-bold shrink-0">STEP 4</span>
-                  <span class="text-xs font-bold text-tertiary whitespace-nowrap">배관 관경 범주 역추정</span>
+                  <span id="profStep4Title" class="text-xs font-bold text-tertiary whitespace-nowrap">배관 관경 범주 역추정</span>
                 </div>
                 <span id="profStep4Di" class="px-2 py-0.5 rounded text-xs font-bold font-mono bg-surface-container text-tertiary border border-tertiary/40 whitespace-nowrap shrink-0">
                   대기 중
@@ -2027,9 +2033,12 @@ HTML_PAGE = """
       // Step 3: 배관 관로 재질 역추정 & XAI 판정 근거
       if (prof.step3) {
         const s3 = prof.step3;
+        const title3 = document.getElementById('profStep3Title');
+        if (title3) title3.innerText = s3.is_custom ? "배관 재질 물리 정합성 검증" : "배관 관로 재질 역추정";
+
         const matBadge = document.getElementById('profStep3Mat');
         if (matBadge) {
-          matBadge.innerText = s3.material;
+          matBadge.innerText = s3.material + (s3.is_custom ? " (현장 제원)" : "");
           if (s3.is_custom) {
             matBadge.className = "px-2 py-0.5 rounded text-xs font-bold font-mono bg-secondary/30 text-secondary border border-secondary/60 whitespace-nowrap shrink-0";
           } else {
@@ -2060,9 +2069,12 @@ HTML_PAGE = """
       // Step 4: 배관 관경 범주 역추정 & XAI 판정 근거
       if (prof.step4) {
         const s4 = prof.step4;
+        const title4 = document.getElementById('profStep4Title');
+        if (title4) title4.innerText = s4.is_custom ? "배관 관경 물리 정합성 검증" : "배관 관경 범주 역추정";
+
         const diBadge = document.getElementById('profStep4Di');
         if (diBadge) {
-          diBadge.innerText = s4.diameter;
+          diBadge.innerText = s4.diameter + (s4.is_custom ? " (현장 제원)" : "");
           if (s4.is_custom) {
             diBadge.className = "px-2 py-0.5 rounded text-xs font-bold font-mono bg-tertiary/30 text-tertiary border border-tertiary/60 whitespace-nowrap shrink-0";
           } else {
