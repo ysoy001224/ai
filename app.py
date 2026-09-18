@@ -615,8 +615,8 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
     jet_prob_val = round(jet_prob if 'jet_prob' in locals() else 50.0, 1)
     if abs(jet_prob_val - 50.0) <= 6.0:
         prof_step2_title = "복합 분출형"
-        prof_step2_desc = "고압 제트 분출과 대량 유출 파열의 경계 대역에 위치하여 단일 분출 형태로 확정하기 어렵습니다."
-        prof_step2_conf = round(100.0 - abs(jet_prob_val - 50.0) * 2, 1)
+        prof_step2_desc = f"고압 제트 분출과 대량 유출 파열의 중간 경계 대역(제트 지수 {jet_prob_val}%)에 위치하여 두 음향 양상이 혼재된 복합 분출 형태입니다."
+        prof_step2_conf = jet_prob_val
     elif jet_prob_val > 50.0:
         prof_step2_title = "고속 제트 분출형"
         prof_step2_desc = "미세 균열 또는 패킹 파손부를 통해 고압 수류가 뿜어져 나오며 형성되는 날카로운 1,500Hz 이상 고주파 마찰음이 주도적입니다."
@@ -624,7 +624,7 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
     else:
         prof_step2_title = "대량 유출 파열형"
         prof_step2_desc = "배관 파단 또는 대구경 손상으로 인해 뿜어져 나오는 대량 수격·공진 진동으로 300~700Hz 중저음 대역 에너지가 압도적입니다."
-        prof_step2_conf = round(100.0 - jet_prob_val, 1)
+        prof_step2_conf = jet_prob_val
 
     prof_mat_metal_p = 50.0
     prof_mat_nonmetal_p = 50.0
