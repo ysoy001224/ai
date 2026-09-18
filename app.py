@@ -908,6 +908,16 @@ HTML_PAGE = """
       max-width: 1720px !important;
       padding: 1.5rem !important;
     }
+    body.mode-pc #imgSpectrogram:not(.hidden) {
+      max-height: 420px !important;
+      max-width: 760px !important;
+      width: auto !important;
+      height: auto !important;
+      margin-left: auto !important;
+      margin-right: auto !important;
+      display: block !important;
+      object-fit: contain !important;
+    }
   </style>
 </head>
 <body class="mode-mobile bg-surface text-on-surface min-h-screen flex flex-col font-body-md overflow-x-hidden selection:bg-primary selection:text-on-primary-container">
@@ -1218,9 +1228,9 @@ HTML_PAGE = """
         </div>
 
         <!-- 실측 3패널 차트 이미지 표시 영역 -->
-        <div class="w-full bg-[#0B1422] rounded border border-outline-variant/80 p-2 min-h-[360px] flex items-center justify-center">
-          <img id="imgSpectrogram" class="w-full h-auto rounded shadow-lg hidden" alt="음향 스펙트로그램 및 PSD 시각화">
-          <div id="plotPlaceholder" class="text-center py-16 text-outline">
+        <div class="w-full bg-[#0B1422] rounded border border-outline-variant/80 p-3 sm:p-4 min-h-[220px] sm:min-h-[280px] flex items-center justify-center overflow-hidden">
+          <img id="imgSpectrogram" class="max-w-full lg:max-w-2xl xl:max-w-3xl max-h-[380px] sm:max-h-[420px] w-auto h-auto rounded shadow-md hidden object-contain mx-auto transition-all" alt="음향 스펙트로그램 및 PSD 시각화">
+          <div id="plotPlaceholder" class="text-center py-10 sm:py-14 text-outline">
             <span class="material-symbols-outlined text-4xl mb-2 text-outline/50">analytics</span>
             <p class="text-xs">음원을 업로드하면 정밀 주파수 스펙트럼과 물리 음향 분석 곡선이 생성됩니다.</p>
           </div>
