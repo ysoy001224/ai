@@ -612,81 +612,97 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
         steady_dur = round(dur, 1)
         truncated_note = "신호 길이가 짧아 전구간으로 분석되었습니다."
 
-    jet_prob_val = round(jet_prob if 'jet_prob' in locals() else 50.0, 1)
-    if abs(jet_prob_val - 50.0) <= 6.0:
-        prof_step2_title = "복합 분출형"
-        prof_step2_desc = f"고압 제트 분출과 대량 유출 파열의 중간 경계 대역(제트 지수 {jet_prob_val}%)에 위치하여 두 음향 양상이 혼재된 복합 분출 형태입니다."
-        prof_step2_conf = jet_prob_val
-    elif jet_prob_val > 50.0:
-        prof_step2_title = "고속 제트 분출형"
-        prof_step2_desc = "미세 균열 또는 패킹 파손부를 통해 고압 수류가 뿜어져 나오며 형성되는 날카로운 1,500Hz 이상 고주파 마찰음이 주도적입니다."
-        prof_step2_conf = jet_prob_val
+    if is_leak:
+        jet_prob_val = round(jet_prob if 'jet_prob' in locals() else 50.0, 1)
+        if abs(jet_prob_val - 50.0) <= 6.0:
+            prof_step2_title = "복합 분출형"
+            prof_step2_desc = f"고압 제트 분출과 대량 유출 파열의 중간 경계 대역(제트 지수 {jet_prob_val}%)에 위치하여 두 음향 양상이 혼재된 복합 분출 형태입니다."
+            prof_step2_conf = jet_prob_val
+        elif jet_prob_val > 50.0:
+            prof_step2_title = "고속 제트 분출형"
+            prof_step2_desc = "미세 균열 또는 패킹 파손부를 통해 고압 수류가 뿜어져 나오며 형성되는 날카로운 1,500Hz 이상 고주파 마찰음이 주도적입니다."
+            prof_step2_conf = jet_prob_val
+        else:
+            prof_step2_title = "대량 유출 파열형"
+            prof_step2_desc = "배관 파단 또는 대구경 손상으로 인해 뿜어져 나오는 대량 수격·공진 진동으로 300~700Hz 중저음 대역 에너지가 압도적입니다."
+            prof_step2_conf = jet_prob_val
+
+        prof_mat_metal_p = 50.0
+        prof_mat_nonmetal_p = 50.0
+        prof_mat_status = "미확정"
+        prof_mat_reasons = []
+        prof_di_status = "미확정"
+        prof_di_reasons = []
+        prof_di_dict = {'소구경(13~25mm)': 33.3, '중구경(30~80mm)': 33.4, '대구경(100mm이상)': 33.3}
+        prof_depth_note = f"[매설 심도 {eff_depth:.1f}m 토양 고주파 감쇠 역보정식 적용: 지하 깊이에 따른 고주파 손실분을 주파수별 지수함수로 복원함]"
+
+        if pipe_pkg is not None:
+            try:
+                mat_classes = list(pipe_pkg['mat_classes'])
+                metal_idx = mat_classes.index('금속관') if '금속관' in mat_classes else 0
+                nonmetal_idx = mat_classes.index('비금속관') if '비금속관' in mat_classes else 1
+                
+                corr_factor = 0.85 if jet_prob_val > 50.0 else (1.20 if jet_prob_val < 44.0 else 1.0)
+                adj_hf = hf_ratio * corr_factor
+                adj_feat_arr = feat_arr.copy()
+                adj_feat_arr[0, 9] = adj_hf
+
+                adj_mat_probs = pipe_pkg['mat_model'].predict_proba(adj_feat_arr)[0]
+                prof_mat_metal_p = round(float(adj_mat_probs[metal_idx] * 100.0), 1)
+                prof_mat_nonmetal_p = round(float(adj_mat_probs[nonmetal_idx] * 100.0), 1)
+                diff_m = abs(prof_mat_metal_p - prof_mat_nonmetal_p)
+                if mat_is_custom:
+                    fit_p = prof_mat_metal_p if '금속' in mat_disp else prof_mat_nonmetal_p
+                    prof_mat_status = f"입력 제원({mat_disp}) 물리 음향 정합도 {fit_p}%"
+                elif prof_mat_metal_p >= prof_mat_nonmetal_p:
+                    prof_mat_status = f"금속관 우세 (확률 {prof_mat_metal_p}%, 비금속 대비 +{diff_m:.1f}%p)"
+                else:
+                    prof_mat_status = f"비금속관(플라스틱) 우세 (확률 {prof_mat_nonmetal_p}%, 금속 대비 +{diff_m:.1f}%p)"
+
+                di_classes = list(pipe_pkg['di_classes'])
+                adj_di_probs = pipe_pkg['di_model'].predict_proba(adj_feat_arr)[0]
+                prof_di_dict = {str(cls).replace("배관", "").strip(): round(float(p * 100.0), 1) for cls, p in zip(di_classes, adj_di_probs)}
+                sorted_di = sorted(prof_di_dict.items(), key=lambda x: x[1], reverse=True)
+                top1_di, top1_p = sorted_di[0]
+                top2_di, top2_p = sorted_di[1]
+                if di_is_custom:
+                    prof_di_status = f"입력 제원({di_disp}) 음향 공진 정합도 검증 완료"
+                else:
+                    prof_di_status = f"{top1_di} 우세 (확률 {top1_p}%, 차순위 대비 +{round(top1_p - top2_p, 1)}%p)"
+
+                feat_dict = {
+                    'depth_m': eff_depth,
+                    'p_b1_sub300': p_b1,
+                    'p_b2_300to700': p_b2,
+                    'p_b3_700to1500': p_b3,
+                    'p_b4_1500to3000': p_b4,
+                    'p_b5_3000to4000': p_b5,
+                    'spectral_centroid': spectral_centroid,
+                    'peak_freq': peak_freq,
+                    'hf_ratio': hf_ratio
+                }
+                b_mat, c_mat = get_rf_contributions(pipe_pkg['mat_model'], adj_feat_arr)
+                b_di, c_di = get_rf_contributions(pipe_pkg['di_model'], adj_feat_arr)
+                prof_mat_reasons, prof_di_reasons, prof_depth_note = generate_explanations(
+                    feat_dict, mat_disp, prof_mat_metal_p, di_disp, top1_p, c_mat, c_di, pipe_pkg
+                )
+            except Exception:
+                pass
     else:
-        prof_step2_title = "대량 유출 파열형"
-        prof_step2_desc = "배관 파단 또는 대구경 손상으로 인해 뿜어져 나오는 대량 수격·공진 진동으로 300~700Hz 중저음 대역 에너지가 압도적입니다."
-        prof_step2_conf = jet_prob_val
+        # 비누수(정상 통수) 시 누수 분출 형태 및 배관 속성 역추정 전면 배제 (% 수치 배제)
+        prof_step2_title = "해당없음 (정상 통수)"
+        prof_step2_desc = "정상 통수 음향으로 관로 파열구가 부재하여 누수 분출 형태 진단을 배제합니다."
+        prof_step2_conf = None
 
-    prof_mat_metal_p = 50.0
-    prof_mat_nonmetal_p = 50.0
-    prof_mat_status = "미확정"
-    prof_mat_reasons = []
-    prof_di_status = "미확정"
-    prof_di_reasons = []
-    prof_di_dict = {'소구경(13~25mm)': 33.3, '중구경(30~80mm)': 33.4, '대구경(100mm이상)': 33.3}
-    prof_depth_note = f"[매설 심도 {eff_depth:.1f}m 토양 고주파 감쇠 역보정식 적용: 지하 깊이에 따른 고주파 손실분을 주파수별 지수함수로 복원함]"
+        prof_mat_metal_p = None
+        prof_mat_nonmetal_p = None
+        prof_mat_status = "정상 통수 (역추정 배제)"
+        prof_mat_reasons = ["정상 통수 음향이므로 배관 재질 역추정을 배제합니다."]
 
-    if pipe_pkg is not None:
-        try:
-            mat_classes = list(pipe_pkg['mat_classes'])
-            metal_idx = mat_classes.index('금속관') if '금속관' in mat_classes else 0
-            nonmetal_idx = mat_classes.index('비금속관') if '비금속관' in mat_classes else 1
-            
-            corr_factor = 0.85 if jet_prob_val > 50.0 else (1.20 if jet_prob_val < 44.0 else 1.0)
-            adj_hf = hf_ratio * corr_factor
-            adj_feat_arr = feat_arr.copy()
-            adj_feat_arr[0, 9] = adj_hf
-
-            adj_mat_probs = pipe_pkg['mat_model'].predict_proba(adj_feat_arr)[0]
-            prof_mat_metal_p = round(float(adj_mat_probs[metal_idx] * 100.0), 1)
-            prof_mat_nonmetal_p = round(float(adj_mat_probs[nonmetal_idx] * 100.0), 1)
-            diff_m = abs(prof_mat_metal_p - prof_mat_nonmetal_p)
-            if mat_is_custom:
-                fit_p = prof_mat_metal_p if '금속' in mat_disp else prof_mat_nonmetal_p
-                prof_mat_status = f"입력 제원({mat_disp}) 물리 음향 정합도 {fit_p}%"
-            elif prof_mat_metal_p >= prof_mat_nonmetal_p:
-                prof_mat_status = f"금속관 우세 (확률 {prof_mat_metal_p}%, 비금속 대비 +{diff_m:.1f}%p)"
-            else:
-                prof_mat_status = f"비금속관(플라스틱) 우세 (확률 {prof_mat_nonmetal_p}%, 금속 대비 +{diff_m:.1f}%p)"
-
-            di_classes = list(pipe_pkg['di_classes'])
-            adj_di_probs = pipe_pkg['di_model'].predict_proba(adj_feat_arr)[0]
-            prof_di_dict = {str(cls).replace("배관", "").strip(): round(float(p * 100.0), 1) for cls, p in zip(di_classes, adj_di_probs)}
-            sorted_di = sorted(prof_di_dict.items(), key=lambda x: x[1], reverse=True)
-            top1_di, top1_p = sorted_di[0]
-            top2_di, top2_p = sorted_di[1]
-            if di_is_custom:
-                prof_di_status = f"입력 제원({di_disp}) 음향 공진 정합도 검증 완료"
-            else:
-                prof_di_status = f"{top1_di} 우세 (확률 {top1_p}%, 차순위 대비 +{round(top1_p - top2_p, 1)}%p)"
-
-            feat_dict = {
-                'depth_m': eff_depth,
-                'p_b1_sub300': p_b1,
-                'p_b2_300to700': p_b2,
-                'p_b3_700to1500': p_b3,
-                'p_b4_1500to3000': p_b4,
-                'p_b5_3000to4000': p_b5,
-                'spectral_centroid': spectral_centroid,
-                'peak_freq': peak_freq,
-                'hf_ratio': hf_ratio
-            }
-            b_mat, c_mat = get_rf_contributions(pipe_pkg['mat_model'], adj_feat_arr)
-            b_di, c_di = get_rf_contributions(pipe_pkg['di_model'], adj_feat_arr)
-            prof_mat_reasons, prof_di_reasons, prof_depth_note = generate_explanations(
-                feat_dict, mat_disp, prof_mat_metal_p, di_disp, top1_p, c_mat, c_di, pipe_pkg
-            )
-        except Exception:
-            pass
+        prof_di_status = "정상 통수 (역추정 배제)"
+        prof_di_dict = {}
+        prof_di_reasons = ["정상 통수 음향이므로 배관 구경 역추정을 배제합니다."]
+        prof_depth_note = "정상 통수 상태이므로 매설 심도 역보정식을 적용하지 않습니다."
 
     if is_leak:
         basis_tag = "현장 입력 배관 제원 적용" if (mat_is_custom or di_is_custom) else "순수 음향 역추정 제원"
@@ -726,8 +742,8 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
             'title': prof_step2_title,
             'confidence': prof_step2_conf,
             'desc': prof_step2_desc,
-            'p_high': round(p_high, 1),
-            'hf_ratio': round(hf_ratio, 2)
+            'p_high': round(p_high, 1) if is_leak else None,
+            'hf_ratio': round(hf_ratio, 2) if is_leak else None
         },
         'step3': {
             'material': mat_disp,
@@ -746,7 +762,7 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
                 'b300_700': round(float(p_b2 * 100), 1),
                 'b700_1500': round(float(p_b3 * 100), 1),
                 'above1500': round(float(p_high), 1)
-            },
+            } if is_leak else None,
             'reasons': prof_di_reasons,
             'depth_note': prof_depth_note,
             'is_custom': di_is_custom
@@ -1958,8 +1974,13 @@ HTML_PAGE = """
       }
 
       // 물리 음향 및 배관 세부 지표
-      document.getElementById('dispLeakType').innerText = data.분출형태 || (isLeak ? "고속 제트 분출" : "해당없음 (정상)");
-      document.getElementById('dispLeakTypeDesc').innerText = isLeak ? "주파수 대역비 산출" : "정상 통수 (누수 없음)";
+      if (isLeak) {
+        document.getElementById('dispLeakType').innerText = data.분출형태 || "고속 제트 분출";
+        document.getElementById('dispLeakTypeDesc').innerText = "주파수 대역비 산출";
+      } else {
+        document.getElementById('dispLeakType').innerText = "해당없음 (정상)";
+        document.getElementById('dispLeakTypeDesc').innerText = "정상 통수 (누수 없음)";
+      }
 
       // 사용자가 직접 입력한 배관 인자가 있으면 라벨을 '입력'으로 변경하고 현장 입력값 우선 표시
       const lblMat = document.getElementById('lblPipeMat');
@@ -1972,11 +1993,17 @@ HTML_PAGE = """
         lblDia.innerText = data.di_is_custom ? "배관 구경 (입력)" : "추정 관경 범주";
       }
 
-      document.getElementById('dispPipeMat').innerText = data.pipe_material || (isLeak ? "금속관" : "해당없음 (정상)");
-      document.getElementById('dispPipeMatDesc').innerText = data.mat_desc || (isLeak ? "현장 제원 또는 음향 역추정" : "정상 통수 (역추정 배제)");
-
-      document.getElementById('dispPipeDia').innerText = data.pipe_diameter || (isLeak ? "중구경" : "해당없음 (정상)");
-      document.getElementById('dispPipeDiaDesc').innerText = data.di_desc || (isLeak ? "현장 제원 또는 음향 역추정" : "정상 통수 (역추정 배제)");
+      if (isLeak) {
+        document.getElementById('dispPipeMat').innerText = data.pipe_material || "금속관";
+        document.getElementById('dispPipeMatDesc').innerText = data.mat_desc || "현장 제원 또는 음향 역추정";
+        document.getElementById('dispPipeDia').innerText = data.pipe_diameter || "중구경";
+        document.getElementById('dispPipeDiaDesc').innerText = data.di_desc || "현장 제원 또는 음향 역추정";
+      } else {
+        document.getElementById('dispPipeMat').innerText = data.mat_is_custom ? (data.pipe_material || "현장 제원") : "해당없음 (정상)";
+        document.getElementById('dispPipeMatDesc').innerText = data.mat_is_custom ? "현장 입력 제원" : "정상 통수 (역추정 배제)";
+        document.getElementById('dispPipeDia').innerText = data.di_is_custom ? (data.pipe_diameter || "현장 제원") : "해당없음 (정상)";
+        document.getElementById('dispPipeDiaDesc').innerText = data.di_is_custom ? "현장 입력 제원" : "정상 통수 (역추정 배제)";
+      }
 
       document.getElementById('dispSnr').innerText = `${data.snr_db} dB`;
       document.getElementById('dispPeakFreq').innerText = `${Math.round(data.peak_freq)} Hz`;
@@ -2072,13 +2099,23 @@ HTML_PAGE = """
         const b2 = document.getElementById('profStep2Title');
         if (b2) {
           b2.innerText = s2.title;
-          b2.className = "px-2 py-0.5 rounded text-xs font-bold font-mono bg-surface-container text-white border border-outline-variant whitespace-nowrap shrink-0";
+          if (prof.is_leak) {
+            b2.className = "px-2 py-0.5 rounded text-xs font-bold font-mono bg-surface-container text-white border border-outline-variant whitespace-nowrap shrink-0";
+          } else {
+            b2.className = "px-2 py-0.5 rounded text-xs font-bold font-mono bg-emerald-950 text-emerald-300 border border-emerald-500/40 whitespace-nowrap shrink-0";
+          }
         }
-        document.getElementById('profStep2Conf').innerText = `${s2.confidence}%`;
         const bar2 = document.getElementById('profStep2Bar');
-        if (bar2) bar2.style.width = `${Math.min(100, Math.max(0, s2.confidence))}%`;
+        if (prof.is_leak && s2.confidence !== null && s2.confidence !== undefined) {
+          document.getElementById('profStep2Conf').innerText = `${s2.confidence}%`;
+          if (bar2) bar2.style.width = `${Math.min(100, Math.max(0, s2.confidence))}%`;
+          document.getElementById('profStep2Hf').innerText = `고주파비: ${s2.hf_ratio} | 점유율: ${s2.p_high}%`;
+        } else {
+          document.getElementById('profStep2Conf').innerText = "--";
+          if (bar2) bar2.style.width = "0%";
+          document.getElementById('profStep2Hf').innerText = "해당없음 (정상 통수)";
+        }
         document.getElementById('profStep2Desc').innerText = s2.desc;
-        document.getElementById('profStep2Hf').innerText = `고주파비: ${s2.hf_ratio} | 점유율: ${s2.p_high}%`;
       }
 
       // Step 3: 배관 관로 재질 역추정 & XAI 판정 근거
@@ -2092,14 +2129,24 @@ HTML_PAGE = """
           matBadge.innerText = s3.material + (s3.is_custom ? " (현장 제원)" : "");
           if (s3.is_custom) {
             matBadge.className = "px-2 py-0.5 rounded text-xs font-bold font-mono bg-secondary/30 text-secondary border border-secondary/60 whitespace-nowrap shrink-0";
-          } else {
+          } else if (prof.is_leak) {
             matBadge.className = "px-2 py-0.5 rounded text-xs font-bold font-mono bg-surface-container text-secondary border border-secondary/40 whitespace-nowrap shrink-0";
+          } else {
+            matBadge.className = "px-2 py-0.5 rounded text-xs font-bold font-mono bg-surface-container text-outline border border-outline-variant whitespace-nowrap shrink-0";
           }
         }
-        document.getElementById('profMatMetalPct').innerText = `${s3.metal_prob}%`;
-        document.getElementById('profMatMetalBar').style.width = `${s3.metal_prob}%`;
-        document.getElementById('profMatNonmetalPct').innerText = `${s3.nonmetal_prob}%`;
-        document.getElementById('profMatNonmetalBar').style.width = `${s3.nonmetal_prob}%`;
+
+        if (prof.is_leak && s3.metal_prob !== null && s3.metal_prob !== undefined) {
+          document.getElementById('profMatMetalPct').innerText = `${s3.metal_prob}%`;
+          document.getElementById('profMatMetalBar').style.width = `${s3.metal_prob}%`;
+          document.getElementById('profMatNonmetalPct').innerText = `${s3.nonmetal_prob}%`;
+          document.getElementById('profMatNonmetalBar').style.width = `${s3.nonmetal_prob}%`;
+        } else {
+          document.getElementById('profMatMetalPct').innerText = "--";
+          document.getElementById('profMatMetalBar').style.width = "0%";
+          document.getElementById('profMatNonmetalPct').innerText = "--";
+          document.getElementById('profMatNonmetalBar').style.width = "0%";
+        }
         document.getElementById('profStep3Status').innerText = s3.status_desc;
 
         const rBox3 = document.getElementById('profStep3Reasons');
@@ -2128,8 +2175,10 @@ HTML_PAGE = """
           diBadge.innerText = s4.diameter + (s4.is_custom ? " (현장 제원)" : "");
           if (s4.is_custom) {
             diBadge.className = "px-2 py-0.5 rounded text-xs font-bold font-mono bg-tertiary/30 text-tertiary border border-tertiary/60 whitespace-nowrap shrink-0";
-          } else {
+          } else if (prof.is_leak) {
             diBadge.className = "px-2 py-0.5 rounded text-xs font-bold font-mono bg-surface-container text-tertiary border border-tertiary/40 whitespace-nowrap shrink-0";
+          } else {
+            diBadge.className = "px-2 py-0.5 rounded text-xs font-bold font-mono bg-surface-container text-outline border border-outline-variant whitespace-nowrap shrink-0";
           }
         }
 
@@ -2138,22 +2187,37 @@ HTML_PAGE = """
         const pMid = diMap['중구경(30~80mm)'] || diMap['중구경'] || 0;
         const pLarge = diMap['대구경(100mm이상)'] || diMap['대구경'] || 0;
 
-        document.getElementById('profDiSmall').innerText = `${pSmall}%`;
-        document.getElementById('profDiSmallBar').style.width = `${pSmall}%`;
-        document.getElementById('profDiMid').innerText = `${pMid}%`;
-        document.getElementById('profDiMidBar').style.width = `${pMid}%`;
-        document.getElementById('profDiLarge').innerText = `${pLarge}%`;
-        document.getElementById('profDiLargeBar').style.width = `${pLarge}%`;
+        if (prof.is_leak && Object.keys(diMap).length > 0) {
+          document.getElementById('profDiSmall').innerText = `${pSmall}%`;
+          document.getElementById('profDiSmallBar').style.width = `${pSmall}%`;
+          document.getElementById('profDiMid').innerText = `${pMid}%`;
+          document.getElementById('profDiMidBar').style.width = `${pMid}%`;
+          document.getElementById('profDiLarge').innerText = `${pLarge}%`;
+          document.getElementById('profDiLargeBar').style.width = `${pLarge}%`;
+        } else {
+          document.getElementById('profDiSmall').innerText = "--";
+          document.getElementById('profDiSmallBar').style.width = "0%";
+          document.getElementById('profDiMid').innerText = "--";
+          document.getElementById('profDiMidBar').style.width = "0%";
+          document.getElementById('profDiLarge').innerText = "--";
+          document.getElementById('profDiLargeBar').style.width = "0%";
+        }
 
         document.getElementById('profStep4Status').innerText = s4.status_desc;
 
-        if (s4.bands) {
+        if (prof.is_leak && s4.bands) {
           document.getElementById('profBandsSummary').innerText = 
             `저음 ${s4.bands.sub300}% / 중저음 ${s4.bands.b300_700}% / 중고음 ${s4.bands.b700_1500}% / 고음 ${s4.bands.above1500}%`;
           document.getElementById('profBandSub300').style.width = `${s4.bands.sub300}%`;
           document.getElementById('profBand300_700').style.width = `${s4.bands.b300_700}%`;
           document.getElementById('profBand700_1500').style.width = `${s4.bands.b700_1500}%`;
           document.getElementById('profBandAbove1500').style.width = `${s4.bands.above1500}%`;
+        } else {
+          document.getElementById('profBandsSummary').innerText = "정상 통수 (대역 점유율 배제)";
+          document.getElementById('profBandSub300').style.width = "0%";
+          document.getElementById('profBand300_700').style.width = "0%";
+          document.getElementById('profBand700_1500').style.width = "0%";
+          document.getElementById('profBandAbove1500').style.width = "0%";
         }
 
         const rBox4 = document.getElementById('profStep4Reasons');
@@ -2214,13 +2278,17 @@ HTML_PAGE = """
       }
       const p = currentResult.pipe_profiler_report;
       const fname = currentResult.filename || '-';
+      const s2Txt = p.is_leak ? `${p.step2.title} (${p.step2.desc})` : `해당없음 (정상 통수)`;
+      const s3Txt = (p.is_leak && p.step3.metal_prob !== null && p.step3.metal_prob !== undefined) ? `${p.step3.material} (금속 ${p.step3.metal_prob}% vs 비금속 ${p.step3.nonmetal_prob}%)` : `${p.step3.material} (${p.step3.status_desc})`;
+      const s4Txt = p.is_leak ? `${p.step4.diameter} (${p.step4.status_desc})` : `${p.step4.diameter} (${p.step4.status_desc})`;
+
       const text = `[서용_배관속성_추정모델 4단계 정밀 분석 리포트]
 - 대상 음원: ${fname} (길이: ${currentResult.duration_sec}초)
 - 분석 구간: ${p.truncated_note}
 - STEP 1 (누수 판정): ${p.step1.decision} (누수율 ${p.step1.leak_prob}%)
-- STEP 2 (분출 형태): ${p.step2.title} (${p.step2.desc})
-- STEP 3 (관로 재질): ${p.step3.material} (금속 ${p.step3.metal_prob}% vs 비금속 ${p.step3.nonmetal_prob}%)
-- STEP 4 (관로 관경): ${p.step4.diameter} (${p.step4.status_desc})
+- STEP 2 (분출 형태): ${s2Txt}
+- STEP 3 (관로 재질): ${s3Txt}
+- STEP 4 (관로 관경): ${s4Txt}
 
 [최종 분석 결과]
 ${p.final_title || ''}
