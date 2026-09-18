@@ -598,11 +598,11 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
         prof_step2_desc = "고압 제트 분출과 대량 유출 파열의 경계 대역에 위치하여 단일 분출 형태로 확정하기 어렵습니다."
         prof_step2_conf = round(100.0 - abs(jet_prob_val - 50.0) * 2, 1)
     elif jet_prob_val > 50.0:
-        prof_step2_title = f"고속 제트 분출형 (신뢰도 {jet_prob_val}%)"
+        prof_step2_title = "고속 제트 분출형"
         prof_step2_desc = "미세 균열 또는 패킹 파손부를 통해 고압 수류가 뿜어져 나오며 형성되는 날카로운 1,500Hz 이상 고주파 마찰음이 주도적입니다."
         prof_step2_conf = jet_prob_val
     else:
-        prof_step2_title = f"대량 유출 파열형 (신뢰도 {round(100.0 - jet_prob_val, 1)}%)"
+        prof_step2_title = "대량 유출 파열형"
         prof_step2_desc = "배관 파단 또는 대구경 손상으로 인해 뿜어져 나오는 대량 수격·공진 진동으로 300~700Hz 중저음 대역 에너지가 압도적입니다."
         prof_step2_conf = round(100.0 - jet_prob_val, 1)
 
@@ -668,7 +668,7 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
         'truncated_note': truncated_note,
         'steady_dur': steady_dur,
         'step1': {
-            'decision': "누수 신호 감지 (주의)" if is_leak else "정상 통수 (비누수)",
+            'decision': "누수 감지" if is_leak else "정상 통수",
             'leak_prob': round(leak_p, 1),
             'non_leak_prob': round(100.0 - leak_p, 1),
             'pure_prob': round(pure_leak_p, 1),
@@ -1408,11 +1408,11 @@ HTML_PAGE = """
               <span class="material-symbols-outlined text-secondary text-[26px]">tune</span>
               <div>
                 <h2 class="text-base sm:text-lg font-bold text-white flex items-center gap-2 flex-wrap">
-                  <span>[서용_배관속성_추정모델] 4단계 정밀 설명 엔진</span>
-                  <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-primary-container/40 text-primary border border-primary/40">1.5s Impact Truncated</span>
+                  <span>[서용_배관속성_추정모델] 음원 진단 및 설명 모델</span>
+                  <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-secondary/20 text-secondary border border-secondary/40 whitespace-nowrap">1.5초 충격음 자동 배제</span>
                 </h2>
                 <p class="text-xs text-on-surface-variant mt-0.5">
-                  탐사봉 접촉 시 발생하는 앞단 0.0~1.5초 충격 노이즈를 배제하고, 순수 정상상태(Steady-State) 음향만을 정밀 슬라이스하여 분석하는 설명모델입니다.
+                  누수음을 넣으면 해당 음원을 정밀 진단하여 누수 여부, 분출 형태, 배관 재질 및 관경을 4단계로 알기 쉽게 설명해 드리는 모델입니다.
                 </p>
               </div>
             </div>
@@ -1428,7 +1428,7 @@ HTML_PAGE = """
           <div class="flex flex-wrap gap-2 text-xs font-mono">
             <div class="px-2.5 py-1 rounded bg-surface-container border border-outline-variant text-secondary flex items-center gap-1.5">
               <span class="material-symbols-outlined text-[14px]">content_cut</span>
-              <span id="profTruncNote">0.0~1.5초 충격음 배제 완료 (1.5~5.5초 정상상태 분석)</span>
+              <span id="profTruncNote">앞단 0.0~1.5초 접촉 충격 노이즈를 배제한 순수 정상상태 음향으로 분석합니다.</span>
             </div>
           </div>
         </section>
@@ -1437,20 +1437,20 @@ HTML_PAGE = """
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5">
           
           <!-- STEP 1: 누수 여부 정밀 진단 -->
-          <div class="bg-surface-container-low rounded border border-outline-variant p-4 sm:p-5 flex flex-col justify-between shadow-sm">
+          <div class="bg-surface-container-low rounded border border-outline-variant p-3.5 sm:p-5 flex flex-col justify-between shadow-sm">
             <div>
-              <div class="flex items-center justify-between pb-2.5 border-b border-outline-variant/60 mb-3">
-                <span class="text-xs font-bold text-secondary flex items-center gap-1.5">
-                  <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-secondary/20 text-secondary border border-secondary/40">STEP 1</span>
-                  누수 여부 정밀 진단
-                </span>
-                <span id="profStep1Badge" class="px-2 py-0.5 rounded text-xs font-bold font-mono bg-surface-container text-outline border border-outline-variant">
+              <div class="flex items-center justify-between pb-2 border-b border-outline-variant/60 mb-3 gap-2">
+                <div class="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+                  <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-secondary/20 text-secondary border border-secondary/40 font-bold shrink-0">STEP 1</span>
+                  <span class="text-xs font-bold text-secondary whitespace-nowrap">누수 여부 정밀 진단</span>
+                </div>
+                <span id="profStep1Badge" class="px-2 py-0.5 rounded text-xs font-bold font-mono bg-surface-container text-outline border border-outline-variant whitespace-nowrap shrink-0">
                   대기 중
                 </span>
               </div>
               <div class="flex justify-between items-baseline mb-2">
-                <span class="text-xs text-on-surface-variant font-medium">소프트 보팅 앙상블 누수 확률</span>
-                <span id="profStep1Prob" class="text-xl font-bold font-mono text-white">--%</span>
+                <span class="text-xs text-on-surface-variant font-medium whitespace-nowrap">앙상블 누수 확률</span>
+                <span id="profStep1Prob" class="text-xl font-bold font-mono text-white shrink-0 ml-2">--%</span>
               </div>
               <div class="w-full h-2.5 bg-surface-container-lowest rounded-full overflow-hidden mb-3">
                 <div id="profStep1Bar" class="h-full rounded-full transition-all duration-700 bg-rose-500" style="width: 0%"></div>
@@ -1459,27 +1459,27 @@ HTML_PAGE = """
                 음원을 업로드하면 532차원 슬라이딩 윈도우 순수 음향 앙상블 누수 판정이 도출됩니다.
               </p>
             </div>
-            <div class="text-[11px] text-outline font-mono mt-3 pt-2 border-t border-outline-variant/40 flex justify-between">
-              <span>순수 음향 모델 판정</span>
-              <span id="profStep1PureProb">--%</span>
+            <div class="text-[11px] text-outline font-mono mt-3 pt-2 border-t border-outline-variant/40 flex justify-between items-center">
+              <span class="whitespace-nowrap">순수 음향 모델 판정</span>
+              <span id="profStep1PureProb" class="whitespace-nowrap shrink-0 ml-1">--%</span>
             </div>
           </div>
 
           <!-- STEP 2: 누수 분출 형태 진단 -->
-          <div class="bg-surface-container-low rounded border border-outline-variant p-4 sm:p-5 flex flex-col justify-between shadow-sm">
+          <div class="bg-surface-container-low rounded border border-outline-variant p-3.5 sm:p-5 flex flex-col justify-between shadow-sm">
             <div>
-              <div class="flex items-center justify-between pb-2.5 border-b border-outline-variant/60 mb-3">
-                <span class="text-xs font-bold text-tertiary flex items-center gap-1.5">
-                  <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-tertiary/20 text-tertiary border border-tertiary/40">STEP 2</span>
-                  누수 분출 형태 진단
-                </span>
-                <span id="profStep2Title" class="px-2 py-0.5 rounded text-xs font-bold font-mono bg-surface-container text-white border border-outline-variant">
+              <div class="flex items-center justify-between pb-2 border-b border-outline-variant/60 mb-3 gap-2">
+                <div class="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+                  <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-tertiary/20 text-tertiary border border-tertiary/40 font-bold shrink-0">STEP 2</span>
+                  <span class="text-xs font-bold text-tertiary whitespace-nowrap">누수 분출 형태 진단</span>
+                </div>
+                <span id="profStep2Title" class="px-2 py-0.5 rounded text-xs font-bold font-mono bg-surface-container text-white border border-outline-variant whitespace-nowrap shrink-0">
                   대기 중
                 </span>
               </div>
               <div class="flex justify-between items-baseline mb-2">
-                <span class="text-xs text-on-surface-variant font-medium">제트 분출 지수 (Jet Index)</span>
-                <span id="profStep2Conf" class="text-xl font-bold font-mono text-tertiary">--%</span>
+                <span class="text-xs text-on-surface-variant font-medium whitespace-nowrap">제트 분출 지수 (Jet Index)</span>
+                <span id="profStep2Conf" class="text-xl font-bold font-mono text-tertiary shrink-0 ml-2">--%</span>
               </div>
               <div class="w-full h-2.5 bg-surface-container-lowest rounded-full overflow-hidden mb-3">
                 <div id="profStep2Bar" class="h-full rounded-full transition-all duration-700 bg-amber-400" style="width: 0%"></div>
@@ -1488,21 +1488,21 @@ HTML_PAGE = """
                 고압 제트 분출 마찰음과 대량 유출 파열음의 스펙트럼 에너지 중심선 및 고주파 비율을 분석합니다.
               </p>
             </div>
-            <div class="text-[11px] text-outline font-mono mt-3 pt-2 border-t border-outline-variant/40 flex justify-between">
-              <span>고주파 점유율 (1.5k~4kHz)</span>
-              <span id="profStep2Hf">--%</span>
+            <div class="text-[11px] text-outline font-mono mt-3 pt-2 border-t border-outline-variant/40 flex justify-between items-center">
+              <span class="whitespace-nowrap">고주파 점유율 (1.5k~4kHz)</span>
+              <span id="profStep2Hf" class="whitespace-nowrap shrink-0 ml-1">--%</span>
             </div>
           </div>
 
           <!-- STEP 3: 배관 관로 재질 역추정 & XAI 설명모델 -->
-          <div class="bg-surface-container-low rounded border border-outline-variant p-4 sm:p-5 flex flex-col justify-between shadow-sm">
+          <div class="bg-surface-container-low rounded border border-outline-variant p-3.5 sm:p-5 flex flex-col justify-between shadow-sm">
             <div>
-              <div class="flex items-center justify-between pb-2.5 border-b border-outline-variant/60 mb-3">
-                <span class="text-xs font-bold text-secondary flex items-center gap-1.5">
-                  <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-secondary/20 text-secondary border border-secondary/40">STEP 3</span>
-                  배관 관로 재질 역추정
-                </span>
-                <span id="profStep3Mat" class="px-2 py-0.5 rounded text-xs font-bold font-mono bg-surface-container text-secondary border border-secondary/40">
+              <div class="flex items-center justify-between pb-2 border-b border-outline-variant/60 mb-3 gap-2">
+                <div class="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+                  <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-secondary/20 text-secondary border border-secondary/40 font-bold shrink-0">STEP 3</span>
+                  <span class="text-xs font-bold text-secondary whitespace-nowrap">배관 관로 재질 역추정</span>
+                </div>
+                <span id="profStep3Mat" class="px-2 py-0.5 rounded text-xs font-bold font-mono bg-surface-container text-secondary border border-secondary/40 whitespace-nowrap shrink-0">
                   대기 중
                 </span>
               </div>
@@ -1511,8 +1511,8 @@ HTML_PAGE = """
               <div class="space-y-2 mb-3">
                 <div>
                   <div class="flex justify-between text-xs font-mono mb-1">
-                    <span class="text-on-surface">금속관 (주철/강관/DIP)</span>
-                    <span id="profMatMetalPct" class="font-bold text-white">--%</span>
+                    <span class="text-on-surface whitespace-nowrap">금속관 (주철/강관/DIP)</span>
+                    <span id="profMatMetalPct" class="font-bold text-white shrink-0 ml-1">--%</span>
                   </div>
                   <div class="w-full h-2 bg-surface-container-lowest rounded-full overflow-hidden">
                     <div id="profMatMetalBar" class="h-full rounded-full bg-cyan-400 transition-all duration-700" style="width: 0%"></div>
@@ -1520,8 +1520,8 @@ HTML_PAGE = """
                 </div>
                 <div>
                   <div class="flex justify-between text-xs font-mono mb-1">
-                    <span class="text-on-surface">비금속관 (플라스틱 PE/PVC)</span>
-                    <span id="profMatNonmetalPct" class="font-bold text-white">--%</span>
+                    <span class="text-on-surface whitespace-nowrap">비금속관 (플라스틱 PE/PVC)</span>
+                    <span id="profMatNonmetalPct" class="font-bold text-white shrink-0 ml-1">--%</span>
                   </div>
                   <div class="w-full h-2 bg-surface-container-lowest rounded-full overflow-hidden">
                     <div id="profMatNonmetalBar" class="h-full rounded-full bg-indigo-400 transition-all duration-700" style="width: 0%"></div>
@@ -1531,7 +1531,7 @@ HTML_PAGE = """
 
               <!-- Random Forest Tree 판정 근거 소견 -->
               <div class="space-y-1.5">
-                <div class="text-[11px] text-secondary font-bold flex items-center gap-1">
+                <div class="text-[11px] text-secondary font-bold flex items-center gap-1 whitespace-nowrap">
                   <span class="material-symbols-outlined text-[14px]">psychology</span>
                   음향학적 판정 근거 (Treeinterpreter XAI)
                 </div>
@@ -1540,44 +1540,44 @@ HTML_PAGE = """
                 </div>
               </div>
             </div>
-            <div class="text-[11px] text-outline font-mono mt-3 pt-2 border-t border-outline-variant/40 flex justify-between">
-              <span>판정 신뢰 상태</span>
-              <span id="profStep3Status">--</span>
+            <div class="text-[11px] text-outline font-mono mt-3 pt-2 border-t border-outline-variant/40 flex justify-between items-center">
+              <span class="whitespace-nowrap">판정 신뢰 상태</span>
+              <span id="profStep3Status" class="whitespace-nowrap truncate shrink-0 ml-1">--</span>
             </div>
           </div>
 
           <!-- STEP 4: 배관 관경 범주 역추정 & XAI 설명모델 -->
-          <div class="bg-surface-container-low rounded border border-outline-variant p-4 sm:p-5 flex flex-col justify-between shadow-sm">
+          <div class="bg-surface-container-low rounded border border-outline-variant p-3.5 sm:p-5 flex flex-col justify-between shadow-sm">
             <div>
-              <div class="flex items-center justify-between pb-2.5 border-b border-outline-variant/60 mb-3">
-                <span class="text-xs font-bold text-tertiary flex items-center gap-1.5">
-                  <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-tertiary/20 text-tertiary border border-tertiary/40">STEP 4</span>
-                  배관 관경 범주 역추정
-                </span>
-                <span id="profStep4Di" class="px-2 py-0.5 rounded text-xs font-bold font-mono bg-surface-container text-tertiary border border-tertiary/40">
+              <div class="flex items-center justify-between pb-2 border-b border-outline-variant/60 mb-3 gap-2">
+                <div class="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+                  <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-tertiary/20 text-tertiary border border-tertiary/40 font-bold shrink-0">STEP 4</span>
+                  <span class="text-xs font-bold text-tertiary whitespace-nowrap">배관 관경 범주 역추정</span>
+                </div>
+                <span id="profStep4Di" class="px-2 py-0.5 rounded text-xs font-bold font-mono bg-surface-container text-tertiary border border-tertiary/40 whitespace-nowrap shrink-0">
                   대기 중
                 </span>
               </div>
 
               <!-- 3대 구경 확률 바 -->
-              <div class="grid grid-cols-3 gap-2 mb-3">
-                <div class="bg-surface-container p-2 rounded border border-outline-variant flex flex-col justify-between text-center">
-                  <span class="text-[10px] text-on-surface-variant font-medium">소구경(13~25)</span>
-                  <span id="profDiSmall" class="text-sm font-bold font-mono text-white my-1">--%</span>
+              <div class="grid grid-cols-3 gap-1.5 sm:gap-2 mb-3">
+                <div class="bg-surface-container p-2 rounded border border-outline-variant flex flex-col justify-between text-center min-w-0">
+                  <span class="text-[10px] text-on-surface-variant font-medium truncate whitespace-nowrap">소구경(13~25)</span>
+                  <span id="profDiSmall" class="text-xs sm:text-sm font-bold font-mono text-white my-1">--%</span>
                   <div class="w-full h-1 bg-surface-container-lowest rounded-full overflow-hidden">
                     <div id="profDiSmallBar" class="h-full bg-emerald-400 transition-all duration-700" style="width: 0%"></div>
                   </div>
                 </div>
-                <div class="bg-surface-container p-2 rounded border border-outline-variant flex flex-col justify-between text-center">
-                  <span class="text-[10px] text-on-surface-variant font-medium">중구경(30~80)</span>
-                  <span id="profDiMid" class="text-sm font-bold font-mono text-white my-1">--%</span>
+                <div class="bg-surface-container p-2 rounded border border-outline-variant flex flex-col justify-between text-center min-w-0">
+                  <span class="text-[10px] text-on-surface-variant font-medium truncate whitespace-nowrap">중구경(30~80)</span>
+                  <span id="profDiMid" class="text-xs sm:text-sm font-bold font-mono text-white my-1">--%</span>
                   <div class="w-full h-1 bg-surface-container-lowest rounded-full overflow-hidden">
                     <div id="profDiMidBar" class="h-full bg-amber-400 transition-all duration-700" style="width: 0%"></div>
                   </div>
                 </div>
-                <div class="bg-surface-container p-2 rounded border border-outline-variant flex flex-col justify-between text-center">
-                  <span class="text-[10px] text-on-surface-variant font-medium">대구경(100+)</span>
-                  <span id="profDiLarge" class="text-sm font-bold font-mono text-white my-1">--%</span>
+                <div class="bg-surface-container p-2 rounded border border-outline-variant flex flex-col justify-between text-center min-w-0">
+                  <span class="text-[10px] text-on-surface-variant font-medium truncate whitespace-nowrap">대구경(100+)</span>
+                  <span id="profDiLarge" class="text-xs sm:text-sm font-bold font-mono text-white my-1">--%</span>
                   <div class="w-full h-1 bg-surface-container-lowest rounded-full overflow-hidden">
                     <div id="profDiLargeBar" class="h-full bg-rose-400 transition-all duration-700" style="width: 0%"></div>
                   </div>
@@ -1587,8 +1587,8 @@ HTML_PAGE = """
               <!-- 4대 주파수 대역 에너지 점유율 분할 바 -->
               <div class="space-y-1 mb-3">
                 <div class="flex justify-between text-[11px] font-mono text-outline">
-                  <span>주파수 대역 점유율:</span>
-                  <span id="profBandsSummary">저음 --% / 중저음 --% / 중고음 --% / 고음 --%</span>
+                  <span class="whitespace-nowrap shrink-0">주파수 대역 점유율:</span>
+                  <span id="profBandsSummary" class="text-right truncate ml-1">저음 --% / 중저음 --% / 중고음 --% / 고음 --%</span>
                 </div>
                 <div class="w-full h-2 rounded-full overflow-hidden flex bg-surface-container-lowest">
                   <div id="profBandSub300" class="h-full bg-slate-400 transition-all duration-700" style="width: 25%" title="300Hz 미만"></div>
@@ -1600,7 +1600,7 @@ HTML_PAGE = """
 
               <!-- Random Forest 관경 판정 근거 소견 -->
               <div class="space-y-1.5">
-                <div class="text-[11px] text-tertiary font-bold flex items-center gap-1">
+                <div class="text-[11px] text-tertiary font-bold flex items-center gap-1 whitespace-nowrap">
                   <span class="material-symbols-outlined text-[14px]">psychology</span>
                   공진 대역 판정 근거 (Treeinterpreter XAI)
                 </div>
@@ -1609,9 +1609,9 @@ HTML_PAGE = """
                 </div>
               </div>
             </div>
-            <div class="text-[11px] text-outline font-mono mt-3 pt-2 border-t border-outline-variant/40 flex justify-between">
-              <span>판정 신뢰 상태</span>
-              <span id="profStep4Status">--</span>
+            <div class="text-[11px] text-outline font-mono mt-3 pt-2 border-t border-outline-variant/40 flex justify-between items-center">
+              <span class="whitespace-nowrap">판정 신뢰 상태</span>
+              <span id="profStep4Status" class="whitespace-nowrap truncate shrink-0 ml-1">--</span>
             </div>
           </div>
 
@@ -1962,9 +1962,9 @@ HTML_PAGE = """
         if (badge) {
           badge.innerText = s1.decision;
           if (prof.is_leak) {
-            badge.className = "px-2 py-0.5 rounded text-xs font-bold font-mono bg-error-container text-on-error-container border border-red-500/40";
+            badge.className = "px-2 py-0.5 rounded text-xs font-bold font-mono bg-error-container text-on-error-container border border-red-500/40 whitespace-nowrap shrink-0";
           } else {
-            badge.className = "px-2 py-0.5 rounded text-xs font-bold font-mono bg-emerald-950 text-emerald-300 border border-emerald-500/40";
+            badge.className = "px-2 py-0.5 rounded text-xs font-bold font-mono bg-emerald-950 text-emerald-300 border border-emerald-500/40 whitespace-nowrap shrink-0";
           }
         }
         document.getElementById('profStep1Prob').innerText = `${s1.leak_prob}%`;
@@ -1980,7 +1980,11 @@ HTML_PAGE = """
       // Step 2: 누수 분출 형태 진단
       if (prof.step2) {
         const s2 = prof.step2;
-        document.getElementById('profStep2Title').innerText = s2.title;
+        const b2 = document.getElementById('profStep2Title');
+        if (b2) {
+          b2.innerText = s2.title;
+          b2.className = "px-2 py-0.5 rounded text-xs font-bold font-mono bg-surface-container text-white border border-outline-variant whitespace-nowrap shrink-0";
+        }
         document.getElementById('profStep2Conf').innerText = `${s2.confidence}%`;
         const bar2 = document.getElementById('profStep2Bar');
         if (bar2) bar2.style.width = `${Math.min(100, Math.max(0, s2.confidence))}%`;
@@ -1995,7 +1999,9 @@ HTML_PAGE = """
         if (matBadge) {
           matBadge.innerText = s3.material;
           if (s3.is_custom) {
-            matBadge.className = "px-2 py-0.5 rounded text-xs font-bold font-mono bg-secondary/30 text-secondary border border-secondary/60";
+            matBadge.className = "px-2 py-0.5 rounded text-xs font-bold font-mono bg-secondary/30 text-secondary border border-secondary/60 whitespace-nowrap shrink-0";
+          } else {
+            matBadge.className = "px-2 py-0.5 rounded text-xs font-bold font-mono bg-surface-container text-secondary border border-secondary/40 whitespace-nowrap shrink-0";
           }
         }
         document.getElementById('profMatMetalPct').innerText = `${s3.metal_prob}%`;
@@ -2026,7 +2032,9 @@ HTML_PAGE = """
         if (diBadge) {
           diBadge.innerText = s4.diameter;
           if (s4.is_custom) {
-            diBadge.className = "px-2 py-0.5 rounded text-xs font-bold font-mono bg-tertiary/30 text-tertiary border border-tertiary/60";
+            diBadge.className = "px-2 py-0.5 rounded text-xs font-bold font-mono bg-tertiary/30 text-tertiary border border-tertiary/60 whitespace-nowrap shrink-0";
+          } else {
+            diBadge.className = "px-2 py-0.5 rounded text-xs font-bold font-mono bg-surface-container text-tertiary border border-tertiary/40 whitespace-nowrap shrink-0";
           }
         }
 
