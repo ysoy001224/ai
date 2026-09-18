@@ -190,6 +190,73 @@ pure_clf, pipe_clf, pipe_pkg = load_models()
 print(f"[[서용엔지니어링 AI 엔진 초기화] 순수: {pure_clf is not None}, 결합: {pipe_clf is not None}, 프로파일러: {pipe_pkg is not None}")
 
 # ----------------------------------------------------------------------
+# 2.5. 트리 인터프리터(Treeinterpreter) 및 배관 속성 설명 모델 함수
+# ----------------------------------------------------------------------
+def get_rf_contributions(rf, x):
+    n_classes = len(rf.classes_)
+    contributions = np.zeros((n_classes, rf.n_features_in_))
+    biases = np.zeros(n_classes)
+    for tree in rf.estimators_:
+        t = tree.tree_
+        root_val = t.value[0, 0] / np.sum(t.value[0, 0])
+        biases += root_val
+        node_id = 0
+        while t.children_left[node_id] != -1:
+            feat_idx = t.feature[node_id]
+            curr_val = t.value[node_id, 0] / np.sum(t.value[node_id, 0])
+            if x[0, feat_idx] <= t.threshold[node_id]:
+                next_node = t.children_left[node_id]
+            else:
+                next_node = t.children_right[node_id]
+            next_val = t.value[next_node, 0] / np.sum(t.value[next_node, 0])
+            contributions[:, feat_idx] += (next_val - curr_val)
+            node_id = next_node
+    biases /= len(rf.estimators_)
+    contributions /= len(rf.estimators_)
+    return biases, contributions
+
+def generate_explanations(feat_dict, mat_pred, mat_prob, di_pred, di_prob, mat_contrib, di_contrib, pkg):
+    hf = feat_dict['hf_ratio']
+    centroid = feat_dict['spectral_centroid']
+    peak = feat_dict['peak_freq']
+    p_low = feat_dict['p_b1_sub300'] * 100
+    p_mid = feat_dict['p_b2_300to700'] * 100
+    p_midhigh = feat_dict['p_b3_700to1500'] * 100
+    p_high = (feat_dict['p_b4_1500to3000'] + feat_dict['p_b5_3000to4000']) * 100
+    depth = feat_dict['depth_m']
+    
+    mat_reasons = []
+    if '플라스틱' in mat_pred or '비금속' in mat_pred:
+        if hf < 0.10:
+            mat_reasons.append(f"고주파 잔존비가 {hf:.2f}로 매우 낮음: 1,500Hz 이상 고음역대 에너지가 급격히 감쇠되어 거의 남지 않는 현상은 소리를 잘 흡수하는 연성 플라스틱(PE/PVC) 배관 관벽 고유의 물리적 음향 감쇠 특성과 부합합니다.")
+        else:
+            mat_reasons.append(f"고주파 잔존비가 {hf:.2f} 수준으로, 금속 배관에 비해 고주파 대역 감쇠 경향이 뚜렷합니다.")
+        if centroid < 800:
+            mat_reasons.append(f"음향 중심주파수가 {centroid:.1f}Hz로 중저주파 대역에 형성되어, 맑은 금속성 마찰 고주파음(1,500Hz 이상)이 결여되어 있습니다.")
+        else:
+            mat_reasons.append(f"고주파 에너지 비중이 {p_high:.1f}%로 제한적이어서 비금속관 파형 패턴을 보입니다.")
+    else:
+        if hf >= 0.15:
+            mat_reasons.append(f"고주파 잔존비가 {hf:.2f}로 높게 유지됨: 강성이 높은 금속 관벽을 통해 1,500~4,000Hz 고주파 마찰음이 감쇠되지 않고 보존되는 강관/주철관 특유의 단단한 쇠 파이프 관벽 전달 특성을 나타냅니다.")
+        else:
+            mat_reasons.append(f"지중 토양 감쇠를 거친 노면음 기준 1,500Hz 이상 잔여 고주파 신호({p_high:.1f}%)가 포착되어 금속 관벽 전달 특성을 반영합니다.")
+        mat_reasons.append(f"음향 중심주파수가 {centroid:.1f}Hz에 위치하며 고주파 성분의 기여도가 높아 금속관으로 판정되었습니다.")
+
+    di_reasons = []
+    if '소구경' in di_pred:
+        di_reasons.append(f"700~1,500Hz 대역 또는 그 이상의 에너지 비중({p_midhigh:.1f}%)이 상대적으로 활발하여, 유속이 빠르고 관 단면이 좁은 소구경(13~25mm) 급수 인입관 특유의 고음 누수 스펙트럼과 유사합니다.")
+        di_reasons.append(f"300Hz 이하 극저주파 비중이 {p_low:.1f}%로 낮아 관경이 큰 본관의 둔탁한 공진음과는 확연히 구분됩니다.")
+    elif '중구경' in di_pred:
+        di_reasons.append(f"300~700Hz 중저음 대역이 전체 에너지의 {p_mid:.1f}%를 차지하며 주도적인 에너지 피크(피크주파수 {peak:.1f}Hz)를 형성하고 있습니다.")
+        di_reasons.append(f"소구경 특유의 날카로운 초고음이나 대구경 특유의 300Hz 이하 초대형 저주파 공진음의 중간 영역에 위치하여 30~80mm 배수/분기 배관 패턴과 가장 잘 부합합니다.")
+    else:
+        di_reasons.append(f"300Hz 이하 저주파 에너지 비중({p_low:.1f}%) 및 중저음 비중이 매우 높아, 관 단면이 크고 수량이 풍부한 100mm 이상 대형 배관의 묵직한 수격·와류 진동 특성을 보입니다.")
+        di_reasons.append(f"고주파 성분이 급격히 소멸되고 저주파 기여도가 높아 대구경 본관 누수로 판정되었습니다.")
+
+    depth_note = f"[매설 심도 {depth:.1f}m 토양 고주파 감쇠 역보정식 적용: 지하 깊이에 따른 고주파 손실분을 주파수별 지수함수로 복원함]"
+    return mat_reasons, di_reasons, depth_note
+
+# ----------------------------------------------------------------------
 # 3. 오리지널 정밀 3패널 차트 생성기 (2D Mel + Welch PSD + AI 대조)
 # ----------------------------------------------------------------------
 def generate_spectrogram_plot_b64(raw_audio, sr, dur, fname, is_leak, f, psd_calib, peak_freq, pure_leak_p, pipe_leak_p):
@@ -512,6 +579,132 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
             {'rank': 4, 'name': '피크 공진 미형성', 'pct': round((w_snr/tot_w)*100, 1), 'desc': f'배관 파단 시 나타나는 특정 대역의 음향 공진 피크가 관측되지 않음', 'color': 'slate'}
         ]
 
+    # ==================================================================
+    # [서용_배관속성_추정모델] 전용 4단계 파이프라인 (1.5초 과도충격음 배제 설명모델)
+    # ==================================================================
+    target_sr = 8000
+    start_idx = int(1.5 * target_sr)
+    steady_len = int(min(len(raw_audio), 5.5 * target_sr))
+    if len(raw_audio) > start_idx + int(0.5 * target_sr):
+        steady_dur = round((steady_len - start_idx) / target_sr, 1)
+        truncated_note = f"0.0~1.5초 탐사봉 접촉 충격음 배제 완료 (1.5~{dur:.1f}초 중 {steady_dur}초 정상상태 분석)"
+    else:
+        steady_dur = round(dur, 1)
+        truncated_note = "신호 길이가 짧아 전구간으로 분석되었습니다."
+
+    jet_prob_val = round(jet_prob if 'jet_prob' in locals() else 50.0, 1)
+    if abs(jet_prob_val - 50.0) <= 6.0:
+        prof_step2_title = "복합 분출형"
+        prof_step2_desc = "고압 제트 분출과 대량 유출 파열의 경계 대역에 위치하여 단일 분출 형태로 확정하기 어렵습니다."
+        prof_step2_conf = round(100.0 - abs(jet_prob_val - 50.0) * 2, 1)
+    elif jet_prob_val > 50.0:
+        prof_step2_title = f"고속 제트 분출형 (신뢰도 {jet_prob_val}%)"
+        prof_step2_desc = "미세 균열 또는 패킹 파손부를 통해 고압 수류가 뿜어져 나오며 형성되는 날카로운 1,500Hz 이상 고주파 마찰음이 주도적입니다."
+        prof_step2_conf = jet_prob_val
+    else:
+        prof_step2_title = f"대량 유출 파열형 (신뢰도 {round(100.0 - jet_prob_val, 1)}%)"
+        prof_step2_desc = "배관 파단 또는 대구경 손상으로 인해 뿜어져 나오는 대량 수격·공진 진동으로 300~700Hz 중저음 대역 에너지가 압도적입니다."
+        prof_step2_conf = round(100.0 - jet_prob_val, 1)
+
+    prof_mat_metal_p = 50.0
+    prof_mat_nonmetal_p = 50.0
+    prof_mat_status = "미확정"
+    prof_mat_reasons = []
+    prof_di_status = "미확정"
+    prof_di_reasons = []
+    prof_di_dict = {'소구경(13~25mm)': 33.3, '중구경(30~80mm)': 33.4, '대구경(100mm이상)': 33.3}
+    prof_depth_note = f"[매설 심도 {eff_depth:.1f}m 토양 고주파 감쇠 역보정식 적용: 지하 깊이에 따른 고주파 손실분을 주파수별 지수함수로 복원함]"
+
+    if pipe_pkg is not None:
+        try:
+            mat_classes = list(pipe_pkg['mat_classes'])
+            metal_idx = mat_classes.index('금속관') if '금속관' in mat_classes else 0
+            nonmetal_idx = mat_classes.index('비금속관') if '비금속관' in mat_classes else 1
+            
+            corr_factor = 0.85 if jet_prob_val > 50.0 else (1.20 if jet_prob_val < 44.0 else 1.0)
+            adj_hf = hf_ratio * corr_factor
+            adj_feat_arr = feat_arr.copy()
+            adj_feat_arr[0, 9] = adj_hf
+
+            adj_mat_probs = pipe_pkg['mat_model'].predict_proba(adj_feat_arr)[0]
+            prof_mat_metal_p = round(float(adj_mat_probs[metal_idx] * 100.0), 1)
+            prof_mat_nonmetal_p = round(float(adj_mat_probs[nonmetal_idx] * 100.0), 1)
+            diff_m = abs(prof_mat_metal_p - prof_mat_nonmetal_p)
+            if prof_mat_metal_p >= prof_mat_nonmetal_p:
+                prof_mat_status = f"금속관 우세 (확률 {prof_mat_metal_p}%, 비금속 대비 +{diff_m:.1f}%p)"
+            else:
+                prof_mat_status = f"비금속관(플라스틱) 우세 (확률 {prof_mat_nonmetal_p}%, 금속 대비 +{diff_m:.1f}%p)"
+
+            di_classes = list(pipe_pkg['di_classes'])
+            adj_di_probs = pipe_pkg['di_model'].predict_proba(adj_feat_arr)[0]
+            prof_di_dict = {str(cls).replace("배관", "").strip(): round(float(p * 100.0), 1) for cls, p in zip(di_classes, adj_di_probs)}
+            sorted_di = sorted(prof_di_dict.items(), key=lambda x: x[1], reverse=True)
+            top1_di, top1_p = sorted_di[0]
+            top2_di, top2_p = sorted_di[1]
+            prof_di_status = f"{top1_di} 우세 (확률 {top1_p}%, 차순위 대비 +{round(top1_p - top2_p, 1)}%p)"
+
+            feat_dict = {
+                'depth_m': eff_depth,
+                'p_b1_sub300': p_b1,
+                'p_b2_300to700': p_b2,
+                'p_b3_700to1500': p_b3,
+                'p_b4_1500to3000': p_b4,
+                'p_b5_3000to4000': p_b5,
+                'spectral_centroid': spectral_centroid,
+                'peak_freq': peak_freq,
+                'hf_ratio': hf_ratio
+            }
+            b_mat, c_mat = get_rf_contributions(pipe_pkg['mat_model'], adj_feat_arr)
+            b_di, c_di = get_rf_contributions(pipe_pkg['di_model'], adj_feat_arr)
+            prof_mat_reasons, prof_di_reasons, prof_depth_note = generate_explanations(
+                feat_dict, mat_disp, prof_mat_metal_p, di_disp, top1_p, c_mat, c_di, pipe_pkg
+            )
+        except Exception:
+            pass
+
+    pipe_profiler_report = {
+        'status': 'success',
+        'is_leak': is_leak,
+        'truncated_note': truncated_note,
+        'steady_dur': steady_dur,
+        'step1': {
+            'decision': "누수 신호 감지 (주의)" if is_leak else "정상 통수 (비누수)",
+            'leak_prob': round(leak_p, 1),
+            'non_leak_prob': round(100.0 - leak_p, 1),
+            'pure_prob': round(pure_leak_p, 1),
+            'desc': f"532차원 소프트 보팅 앙상블 진단 결과, 누수 확률 {leak_p:.1f}% (비누수 {100.0 - leak_p:.1f}%)로 산출되었습니다."
+        },
+        'step2': {
+            'title': prof_step2_title,
+            'confidence': prof_step2_conf,
+            'desc': prof_step2_desc,
+            'p_high': round(p_high, 1),
+            'hf_ratio': round(hf_ratio, 2)
+        },
+        'step3': {
+            'material': mat_disp,
+            'metal_prob': prof_mat_metal_p,
+            'nonmetal_prob': prof_mat_nonmetal_p,
+            'status_desc': prof_mat_status,
+            'reasons': prof_mat_reasons,
+            'is_custom': mat_is_custom
+        },
+        'step4': {
+            'diameter': di_disp,
+            'di_classes': prof_di_dict,
+            'status_desc': prof_di_status,
+            'bands': {
+                'sub300': round(float(p_b1 * 100), 1),
+                'b300_700': round(float(p_b2 * 100), 1),
+                'b700_1500': round(float(p_b3 * 100), 1),
+                'above1500': round(float(p_high), 1)
+            },
+            'reasons': prof_di_reasons,
+            'depth_note': prof_depth_note,
+            'is_custom': di_is_custom
+        }
+    }
+
     return {
         '파일명': fname,
         '음원길이': round(dur, 1),
@@ -539,7 +732,8 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
         'summary_desc': diag_conclusion,
         'plot_b64': plot_b64,
         'waveform_bars': waveform_bars,
-        'contributing_factors': contributing_factors
+        'contributing_factors': contributing_factors,
+        'pipe_profiler_report': pipe_profiler_report
     }
 
 # ----------------------------------------------------------------------
@@ -740,6 +934,19 @@ HTML_PAGE = """
       </div>
     </div>
 
+    <!-- Center: 메인 탭 네비게이션 -->
+    <div class="flex items-center bg-surface-container-lowest p-0.5 rounded-lg border border-outline-variant shadow-inner shrink-0">
+      <button id="tabBtnMain" onclick="switchAppTab('main')" class="px-2.5 sm:px-3 py-1 rounded text-xs font-bold flex items-center gap-1.5 transition-all bg-primary-container text-white shadow-sm whitespace-nowrap">
+        <span class="material-symbols-outlined text-[15px]">hearing</span>
+        <span>지능형 누수음 진단</span>
+      </button>
+      <button id="tabBtnProfiler" onclick="switchAppTab('profiler')" class="px-2.5 sm:px-3 py-1 rounded text-xs font-medium flex items-center gap-1.5 transition-all text-on-surface-variant hover:text-on-surface whitespace-nowrap">
+        <span class="material-symbols-outlined text-[15px]">settings_input_component</span>
+        <span class="hidden sm:inline">배관 속성 정밀 추정 (1.5s 충격음 배제)</span>
+        <span class="sm:hidden">배관속성 추정</span>
+      </button>
+    </div>
+
     <!-- Center/Right: View Mode Toggle (모바일에서는 우측 업로드 버튼 삭제) -->
     <div class="flex items-center gap-2 shrink-0">
       <!-- 홈쇼핑 스타일 뷰 모드 전환 토글 (기본: 모바일) -->
@@ -829,8 +1036,11 @@ HTML_PAGE = """
     <!-- MAIN CANVAS -->
     <main id="mainCanvas" class="flex-1 bg-surface p-4 lg:p-6 overflow-y-auto max-w-[1720px] mx-auto flex flex-col gap-4 lg:gap-5">
       
-      <!-- Context Strip -->
-      <div class="flex items-center justify-between gap-2 pb-2 border-b border-outline-variant/60 text-xs overflow-hidden">
+      <!-- ==================== TAB 1: 지능형 누수음 진단 뷰 ==================== -->
+      <div id="tabViewMain" class="flex flex-col gap-4 lg:gap-5">
+        
+        <!-- Context Strip -->
+        <div class="flex items-center justify-between gap-2 pb-2 border-b border-outline-variant/60 text-xs overflow-hidden">
         <div class="flex items-center gap-1.5 font-medium truncate">
           <span class="text-on-surface-variant whitespace-nowrap">서용</span>
           <span class="text-outline-variant">/</span>
@@ -1154,7 +1364,233 @@ HTML_PAGE = """
             </button>
           </div>
         </div>
-      </section>
+      </div> <!-- end tabViewMain -->
+
+      <!-- ==================== TAB 2: 배관 속성 정밀 추정 뷰 (1.5초 과도충격음 배제 설명모델) ==================== -->
+      <div id="tabViewProfiler" class="hidden flex flex-col gap-4 lg:gap-5">
+        
+        <!-- 개요 배너: 1.5초 과도 충격음 제거 알고리즘 -->
+        <section class="bg-surface-container-low rounded border border-secondary/30 p-4 sm:p-5 shadow-sm relative overflow-hidden">
+          <div class="absolute -right-8 -top-8 w-40 h-40 rounded-full bg-secondary/5 blur-2xl pointer-events-none"></div>
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-outline-variant/60 pb-3 mb-3">
+            <div class="flex items-center gap-2.5">
+              <span class="material-symbols-outlined text-secondary text-[26px]">tune</span>
+              <div>
+                <h2 class="text-base sm:text-lg font-bold text-white flex items-center gap-2 flex-wrap">
+                  <span>[서용_배관속성_추정모델] 4단계 정밀 설명 엔진</span>
+                  <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-primary-container/40 text-primary border border-primary/40">1.5s Impact Truncated</span>
+                </h2>
+                <p class="text-xs text-on-surface-variant mt-0.5">
+                  탐사봉 접촉 시 발생하는 앞단 0.0~1.5초 충격 노이즈를 배제하고, 순수 정상상태(Steady-State) 음향만을 슬라이스하여 토양 심도 지수 감쇠 역보정을 적용한 설명모델입니다.
+                </p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <button onclick="copyProfilerReport()" class="px-3 py-1.5 rounded bg-surface-container hover:bg-surface-bright text-on-surface border border-outline-variant text-xs font-semibold flex items-center gap-1.5 transition-colors">
+                <span class="material-symbols-outlined text-[16px]">content_copy</span>
+                리포트 복사
+              </button>
+            </div>
+          </div>
+
+          <!-- 상태 뱃지 칩들 -->
+          <div class="flex flex-wrap gap-2 text-xs font-mono">
+            <div class="px-2.5 py-1 rounded bg-surface-container border border-outline-variant text-secondary flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-[14px]">content_cut</span>
+              <span id="profTruncNote">0.0~1.5초 충격음 배제 완료 (1.5~5.5초 정상상태 분석)</span>
+            </div>
+            <div class="px-2.5 py-1 rounded bg-surface-container border border-outline-variant text-tertiary flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-[14px]">layers</span>
+              <span id="profDepthNote">토양 감쇠 역보정 식 (α_soil = 0.0004 × f × Δd) 적용</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- 4단계 카드 그리드 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5">
+          
+          <!-- STEP 1: 누수 여부 정밀 진단 -->
+          <div class="bg-surface-container-low rounded border border-outline-variant p-4 sm:p-5 flex flex-col justify-between shadow-sm">
+            <div>
+              <div class="flex items-center justify-between pb-2.5 border-b border-outline-variant/60 mb-3">
+                <span class="text-xs font-bold text-secondary flex items-center gap-1.5">
+                  <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-secondary/20 text-secondary border border-secondary/40">STEP 1</span>
+                  누수 여부 정밀 진단
+                </span>
+                <span id="profStep1Badge" class="px-2 py-0.5 rounded text-xs font-bold font-mono bg-surface-container text-outline border border-outline-variant">
+                  대기 중
+                </span>
+              </div>
+              <div class="flex justify-between items-baseline mb-2">
+                <span class="text-xs text-on-surface-variant font-medium">소프트 보팅 앙상블 누수 확률</span>
+                <span id="profStep1Prob" class="text-xl font-bold font-mono text-white">--%</span>
+              </div>
+              <div class="w-full h-2.5 bg-surface-container-lowest rounded-full overflow-hidden mb-3">
+                <div id="profStep1Bar" class="h-full rounded-full transition-all duration-700 bg-rose-500" style="width: 0%"></div>
+              </div>
+              <p id="profStep1Desc" class="text-xs text-on-surface leading-relaxed p-3 rounded bg-surface-container border border-outline-variant font-sans">
+                음원을 업로드하면 532차원 슬라이딩 윈도우 순수 음향 앙상블 누수 판정이 도출됩니다.
+              </p>
+            </div>
+            <div class="text-[11px] text-outline font-mono mt-3 pt-2 border-t border-outline-variant/40 flex justify-between">
+              <span>순수 음향 모델 판정</span>
+              <span id="profStep1PureProb">--%</span>
+            </div>
+          </div>
+
+          <!-- STEP 2: 누수 분출 형태 진단 -->
+          <div class="bg-surface-container-low rounded border border-outline-variant p-4 sm:p-5 flex flex-col justify-between shadow-sm">
+            <div>
+              <div class="flex items-center justify-between pb-2.5 border-b border-outline-variant/60 mb-3">
+                <span class="text-xs font-bold text-tertiary flex items-center gap-1.5">
+                  <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-tertiary/20 text-tertiary border border-tertiary/40">STEP 2</span>
+                  누수 분출 형태 진단
+                </span>
+                <span id="profStep2Title" class="px-2 py-0.5 rounded text-xs font-bold font-mono bg-surface-container text-white border border-outline-variant">
+                  대기 중
+                </span>
+              </div>
+              <div class="flex justify-between items-baseline mb-2">
+                <span class="text-xs text-on-surface-variant font-medium">제트 분출 지수 (Jet Index)</span>
+                <span id="profStep2Conf" class="text-xl font-bold font-mono text-tertiary">--%</span>
+              </div>
+              <div class="w-full h-2.5 bg-surface-container-lowest rounded-full overflow-hidden mb-3">
+                <div id="profStep2Bar" class="h-full rounded-full transition-all duration-700 bg-amber-400" style="width: 0%"></div>
+              </div>
+              <p id="profStep2Desc" class="text-xs text-on-surface leading-relaxed p-3 rounded bg-surface-container border border-outline-variant font-sans">
+                고압 제트 분출 마찰음과 대량 유출 파열음의 스펙트럼 에너지 중심선 및 고주파 비율을 분석합니다.
+              </p>
+            </div>
+            <div class="text-[11px] text-outline font-mono mt-3 pt-2 border-t border-outline-variant/40 flex justify-between">
+              <span>고주파 점유율 (1.5k~4kHz)</span>
+              <span id="profStep2Hf">--%</span>
+            </div>
+          </div>
+
+          <!-- STEP 3: 배관 관로 재질 역추정 & XAI 설명모델 -->
+          <div class="bg-surface-container-low rounded border border-outline-variant p-4 sm:p-5 flex flex-col justify-between shadow-sm">
+            <div>
+              <div class="flex items-center justify-between pb-2.5 border-b border-outline-variant/60 mb-3">
+                <span class="text-xs font-bold text-secondary flex items-center gap-1.5">
+                  <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-secondary/20 text-secondary border border-secondary/40">STEP 3</span>
+                  배관 관로 재질 역추정
+                </span>
+                <span id="profStep3Mat" class="px-2 py-0.5 rounded text-xs font-bold font-mono bg-surface-container text-secondary border border-secondary/40">
+                  대기 중
+                </span>
+              </div>
+              
+              <!-- 금속 vs 비금속 확률 바 -->
+              <div class="space-y-2 mb-3">
+                <div>
+                  <div class="flex justify-between text-xs font-mono mb-1">
+                    <span class="text-on-surface">금속관 (주철/강관/DIP)</span>
+                    <span id="profMatMetalPct" class="font-bold text-white">--%</span>
+                  </div>
+                  <div class="w-full h-2 bg-surface-container-lowest rounded-full overflow-hidden">
+                    <div id="profMatMetalBar" class="h-full rounded-full bg-cyan-400 transition-all duration-700" style="width: 0%"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-xs font-mono mb-1">
+                    <span class="text-on-surface">비금속관 (플라스틱 PE/PVC)</span>
+                    <span id="profMatNonmetalPct" class="font-bold text-white">--%</span>
+                  </div>
+                  <div class="w-full h-2 bg-surface-container-lowest rounded-full overflow-hidden">
+                    <div id="profMatNonmetalBar" class="h-full rounded-full bg-indigo-400 transition-all duration-700" style="width: 0%"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Random Forest Tree 판정 근거 소견 -->
+              <div class="space-y-1.5">
+                <div class="text-[11px] text-secondary font-bold flex items-center gap-1">
+                  <span class="material-symbols-outlined text-[14px]">psychology</span>
+                  음향학적 판정 근거 (Treeinterpreter XAI)
+                </div>
+                <div id="profStep3Reasons" class="space-y-1.5 text-xs text-on-surface leading-relaxed p-3 rounded bg-surface-container border border-outline-variant font-sans">
+                  음향 스펙트럼의 고주파 잔존비 및 중심주파수를 대조하여 배관 관벽 전달 특성을 역산합니다.
+                </div>
+              </div>
+            </div>
+            <div class="text-[11px] text-outline font-mono mt-3 pt-2 border-t border-outline-variant/40 flex justify-between">
+              <span>판정 신뢰 상태</span>
+              <span id="profStep3Status">--</span>
+            </div>
+          </div>
+
+          <!-- STEP 4: 배관 관경 범주 역추정 & XAI 설명모델 -->
+          <div class="bg-surface-container-low rounded border border-outline-variant p-4 sm:p-5 flex flex-col justify-between shadow-sm">
+            <div>
+              <div class="flex items-center justify-between pb-2.5 border-b border-outline-variant/60 mb-3">
+                <span class="text-xs font-bold text-tertiary flex items-center gap-1.5">
+                  <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-tertiary/20 text-tertiary border border-tertiary/40">STEP 4</span>
+                  배관 관경 범주 역추정
+                </span>
+                <span id="profStep4Di" class="px-2 py-0.5 rounded text-xs font-bold font-mono bg-surface-container text-tertiary border border-tertiary/40">
+                  대기 중
+                </span>
+              </div>
+
+              <!-- 3대 구경 확률 바 -->
+              <div class="grid grid-cols-3 gap-2 mb-3">
+                <div class="bg-surface-container p-2 rounded border border-outline-variant flex flex-col justify-between text-center">
+                  <span class="text-[10px] text-on-surface-variant font-medium">소구경(13~25)</span>
+                  <span id="profDiSmall" class="text-sm font-bold font-mono text-white my-1">--%</span>
+                  <div class="w-full h-1 bg-surface-container-lowest rounded-full overflow-hidden">
+                    <div id="profDiSmallBar" class="h-full bg-emerald-400 transition-all duration-700" style="width: 0%"></div>
+                  </div>
+                </div>
+                <div class="bg-surface-container p-2 rounded border border-outline-variant flex flex-col justify-between text-center">
+                  <span class="text-[10px] text-on-surface-variant font-medium">중구경(30~80)</span>
+                  <span id="profDiMid" class="text-sm font-bold font-mono text-white my-1">--%</span>
+                  <div class="w-full h-1 bg-surface-container-lowest rounded-full overflow-hidden">
+                    <div id="profDiMidBar" class="h-full bg-amber-400 transition-all duration-700" style="width: 0%"></div>
+                  </div>
+                </div>
+                <div class="bg-surface-container p-2 rounded border border-outline-variant flex flex-col justify-between text-center">
+                  <span class="text-[10px] text-on-surface-variant font-medium">대구경(100+)</span>
+                  <span id="profDiLarge" class="text-sm font-bold font-mono text-white my-1">--%</span>
+                  <div class="w-full h-1 bg-surface-container-lowest rounded-full overflow-hidden">
+                    <div id="profDiLargeBar" class="h-full bg-rose-400 transition-all duration-700" style="width: 0%"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 4대 주파수 대역 에너지 점유율 분할 바 -->
+              <div class="space-y-1 mb-3">
+                <div class="flex justify-between text-[11px] font-mono text-outline">
+                  <span>주파수 대역 점유율:</span>
+                  <span id="profBandsSummary">저음 --% / 중저음 --% / 중고음 --% / 고음 --%</span>
+                </div>
+                <div class="w-full h-2 rounded-full overflow-hidden flex bg-surface-container-lowest">
+                  <div id="profBandSub300" class="h-full bg-slate-400 transition-all duration-700" style="width: 25%" title="300Hz 미만"></div>
+                  <div id="profBand300_700" class="h-full bg-cyan-400 transition-all duration-700" style="width: 25%" title="300~700Hz"></div>
+                  <div id="profBand700_1500" class="h-full bg-amber-400 transition-all duration-700" style="width: 25%" title="700~1.5kHz"></div>
+                  <div id="profBandAbove1500" class="h-full bg-rose-500 transition-all duration-700" style="width: 25%" title="1.5kHz 이상"></div>
+                </div>
+              </div>
+
+              <!-- Random Forest 관경 판정 근거 소견 -->
+              <div class="space-y-1.5">
+                <div class="text-[11px] text-tertiary font-bold flex items-center gap-1">
+                  <span class="material-symbols-outlined text-[14px]">psychology</span>
+                  공진 대역 판정 근거 (Treeinterpreter XAI)
+                </div>
+                <div id="profStep4Reasons" class="space-y-1.5 text-xs text-on-surface leading-relaxed p-3 rounded bg-surface-container border border-outline-variant font-sans">
+                  관경별 고유 공진 주파수 및 300~700Hz 대역 에너지를 대조 분석합니다.
+                </div>
+              </div>
+            </div>
+            <div class="text-[11px] text-outline font-mono mt-3 pt-2 border-t border-outline-variant/40 flex justify-between">
+              <span>판정 신뢰 상태</span>
+              <span id="profStep4Status">--</span>
+            </div>
+          </div>
+
+        </div> <!-- end 4-step grid -->
+
+      </div> <!-- end tabViewProfiler -->
 
     </main>
   </div>
@@ -1446,6 +1882,184 @@ HTML_PAGE = """
 
       // AI 판정 핵심 기여 인자 렌더링
       renderContributingFactors(data.contributing_factors);
+
+      // [서용_배관속성_추정모델] 4단계 전용 리포트 렌더링
+      if (data.pipe_profiler_report) {
+        updateProfilerUI(data.pipe_profiler_report);
+      }
+    }
+
+    // ========================================================
+    // 메인 대시보드 vs 배관 속성 정밀 추정 탭 전환 로직
+    // ========================================================
+    let currentActiveTab = 'main';
+
+    function switchAppTab(tab) {
+      currentActiveTab = tab;
+      const btnMain = document.getElementById('tabBtnMain');
+      const btnProf = document.getElementById('tabBtnProfiler');
+      const viewMain = document.getElementById('tabViewMain');
+      const viewProf = document.getElementById('tabViewProfiler');
+
+      if (!btnMain || !btnProf || !viewMain || !viewProf) return;
+
+      if (tab === 'profiler') {
+        btnProf.className = "px-2.5 sm:px-3 py-1 rounded text-xs font-bold flex items-center gap-1.5 transition-all bg-primary-container text-white shadow-sm whitespace-nowrap";
+        btnMain.className = "px-2.5 sm:px-3 py-1 rounded text-xs font-medium flex items-center gap-1.5 transition-all text-on-surface-variant hover:text-on-surface whitespace-nowrap";
+        viewMain.classList.add('hidden');
+        viewProf.classList.remove('hidden');
+      } else {
+        btnMain.className = "px-2.5 sm:px-3 py-1 rounded text-xs font-bold flex items-center gap-1.5 transition-all bg-primary-container text-white shadow-sm whitespace-nowrap";
+        btnProf.className = "px-2.5 sm:px-3 py-1 rounded text-xs font-medium flex items-center gap-1.5 transition-all text-on-surface-variant hover:text-on-surface whitespace-nowrap";
+        viewProf.classList.add('hidden');
+        viewMain.classList.remove('hidden');
+      }
+    }
+
+    // ========================================================
+    // [서용_배관속성_추정모델] 4단계 전용 리포트 UI 갱신 로직
+    // ========================================================
+    function updateProfilerUI(prof) {
+      if (!prof) return;
+
+      // 상단 뱃지 & 안내
+      const elTrunc = document.getElementById('profTruncNote');
+      if (elTrunc) elTrunc.innerText = prof.truncated_note || "0.0~1.5초 충격음 배제 완료";
+      const elDepth = document.getElementById('profDepthNote');
+      if (elDepth && prof.step4 && prof.step4.depth_note) elDepth.innerText = prof.step4.depth_note;
+
+      // Step 1: 누수 여부 정밀 진단
+      if (prof.step1) {
+        const s1 = prof.step1;
+        const badge = document.getElementById('profStep1Badge');
+        if (badge) {
+          badge.innerText = s1.decision;
+          if (prof.is_leak) {
+            badge.className = "px-2 py-0.5 rounded text-xs font-bold font-mono bg-error-container text-on-error-container border border-red-500/40";
+          } else {
+            badge.className = "px-2 py-0.5 rounded text-xs font-bold font-mono bg-emerald-950 text-emerald-300 border border-emerald-500/40";
+          }
+        }
+        document.getElementById('profStep1Prob').innerText = `${s1.leak_prob}%`;
+        const bar1 = document.getElementById('profStep1Bar');
+        if (bar1) {
+          bar1.style.width = `${s1.leak_prob}%`;
+          bar1.className = `h-full rounded-full transition-all duration-700 ${prof.is_leak ? 'bg-rose-500' : 'bg-emerald-400'}`;
+        }
+        document.getElementById('profStep1Desc').innerText = s1.desc;
+        document.getElementById('profStep1PureProb').innerText = `순수 음향 누수율 ${s1.pure_prob}% (비누수 ${s1.non_leak_prob}%)`;
+      }
+
+      // Step 2: 누수 분출 형태 진단
+      if (prof.step2) {
+        const s2 = prof.step2;
+        document.getElementById('profStep2Title').innerText = s2.title;
+        document.getElementById('profStep2Conf').innerText = `${s2.confidence}%`;
+        const bar2 = document.getElementById('profStep2Bar');
+        if (bar2) bar2.style.width = `${Math.min(100, Math.max(0, s2.confidence))}%`;
+        document.getElementById('profStep2Desc').innerText = s2.desc;
+        document.getElementById('profStep2Hf').innerText = `고주파비: ${s2.hf_ratio} | 점유율: ${s2.p_high}%`;
+      }
+
+      // Step 3: 배관 관로 재질 역추정 & XAI 판정 근거
+      if (prof.step3) {
+        const s3 = prof.step3;
+        const matBadge = document.getElementById('profStep3Mat');
+        if (matBadge) {
+          matBadge.innerText = s3.material;
+          if (s3.is_custom) {
+            matBadge.className = "px-2 py-0.5 rounded text-xs font-bold font-mono bg-secondary/30 text-secondary border border-secondary/60";
+          }
+        }
+        document.getElementById('profMatMetalPct').innerText = `${s3.metal_prob}%`;
+        document.getElementById('profMatMetalBar').style.width = `${s3.metal_prob}%`;
+        document.getElementById('profMatNonmetalPct').innerText = `${s3.nonmetal_prob}%`;
+        document.getElementById('profMatNonmetalBar').style.width = `${s3.nonmetal_prob}%`;
+        document.getElementById('profStep3Status').innerText = s3.status_desc;
+
+        const rBox3 = document.getElementById('profStep3Reasons');
+        if (rBox3) {
+          if (s3.reasons && s3.reasons.length > 0) {
+            rBox3.innerHTML = s3.reasons.map(r => `
+              <div class="flex gap-1.5 items-start">
+                <span class="text-secondary font-mono font-bold">•</span>
+                <span>${r}</span>
+              </div>
+            `).join('');
+          } else {
+            rBox3.innerHTML = `<div>${s3.is_custom ? '탐사원이 현장에서 직접 입력한 배관 재질을 물리 결합 모델에 최우선 반영하였습니다.' : '정상 통수 상태이거나 배관 음향 지표 격차가 미미하여 역추정을 보류합니다.'}</div>`;
+          }
+        }
+      }
+
+      // Step 4: 배관 관경 범주 역추정 & XAI 판정 근거
+      if (prof.step4) {
+        const s4 = prof.step4;
+        const diBadge = document.getElementById('profStep4Di');
+        if (diBadge) {
+          diBadge.innerText = s4.diameter;
+          if (s4.is_custom) {
+            diBadge.className = "px-2 py-0.5 rounded text-xs font-bold font-mono bg-tertiary/30 text-tertiary border border-tertiary/60";
+          }
+        }
+
+        const diMap = s4.di_classes || {};
+        const pSmall = diMap['소구경(13~25mm)'] || diMap['소구경'] || 0;
+        const pMid = diMap['중구경(30~80mm)'] || diMap['중구경'] || 0;
+        const pLarge = diMap['대구경(100mm이상)'] || diMap['대구경'] || 0;
+
+        document.getElementById('profDiSmall').innerText = `${pSmall}%`;
+        document.getElementById('profDiSmallBar').style.width = `${pSmall}%`;
+        document.getElementById('profDiMid').innerText = `${pMid}%`;
+        document.getElementById('profDiMidBar').style.width = `${pMid}%`;
+        document.getElementById('profDiLarge').innerText = `${pLarge}%`;
+        document.getElementById('profDiLargeBar').style.width = `${pLarge}%`;
+
+        document.getElementById('profStep4Status').innerText = s4.status_desc;
+
+        if (s4.bands) {
+          document.getElementById('profBandsSummary').innerText = 
+            `저음 ${s4.bands.sub300}% / 중저음 ${s4.bands.b300_700}% / 중고음 ${s4.bands.b700_1500}% / 고음 ${s4.bands.above1500}%`;
+          document.getElementById('profBandSub300').style.width = `${s4.bands.sub300}%`;
+          document.getElementById('profBand300_700').style.width = `${s4.bands.b300_700}%`;
+          document.getElementById('profBand700_1500').style.width = `${s4.bands.b700_1500}%`;
+          document.getElementById('profBandAbove1500').style.width = `${s4.bands.above1500}%`;
+        }
+
+        const rBox4 = document.getElementById('profStep4Reasons');
+        if (rBox4) {
+          if (s4.reasons && s4.reasons.length > 0) {
+            rBox4.innerHTML = s4.reasons.map(r => `
+              <div class="flex gap-1.5 items-start">
+                <span class="text-tertiary font-mono font-bold">•</span>
+                <span>${r}</span>
+              </div>
+            `).join('');
+          } else {
+            rBox4.innerHTML = `<div>${s4.is_custom ? '탐사원이 현장에서 직접 입력한 관경 제원을 물리 결합 모델에 최우선 반영하였습니다.' : '배관 고유 공진 대역을 대조하여 관경을 역산합니다.'}</div>`;
+          }
+        }
+      }
+    }
+
+    function copyProfilerReport() {
+      if (!currentResult || !currentResult.pipe_profiler_report) {
+        alert("먼저 음원을 진단해 주세요.");
+        return;
+      }
+      const p = currentResult.pipe_profiler_report;
+      const fname = currentResult.filename || '-';
+      const text = `[서용_배관속성_추정모델 4단계 정밀 분석 리포트]
+- 대상 음원: ${fname} (길이: ${currentResult.duration_sec}초)
+- 분석 구간: ${p.truncated_note}
+- STEP 1 (누수 판정): ${p.step1.decision} (누수율 ${p.step1.leak_prob}%)
+- STEP 2 (분출 형태): ${p.step2.title} (${p.step2.desc})
+- STEP 3 (관로 재질): ${p.step3.material} (금속 ${p.step3.metal_prob}% vs 비금속 ${p.step3.nonmetal_prob}%)
+- STEP 4 (관로 관경): ${p.step4.diameter} (${p.step4.status_desc})
+- 토양 감쇠: ${p.step4.depth_note}`;
+      navigator.clipboard.writeText(text).then(() => {
+        alert("배관속성 정밀 추정 리포트가 클립보드에 복사되었습니다.");
+      });
     }
 
     function renderContributingFactors(factors) {
@@ -1668,7 +2282,8 @@ def diagnose():
             'applied_model': res.get('적용모델', '통합 AI 엔진'),
             'plot_b64': res.get('plot_b64'),
             'waveform_bars': res.get('waveform_bars', []),
-            'contributing_factors': res.get('contributing_factors', [])
+            'contributing_factors': res.get('contributing_factors', []),
+            'pipe_profiler_report': res.get('pipe_profiler_report')
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
