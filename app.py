@@ -540,20 +540,97 @@ HTML_PAGE = """
     circle.dial-progress {
       transition: stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.5s ease;
     }
+
+    /* ========================================================
+       홈쇼핑 스타일 모바일 / PC 반응형 뷰 모드
+       ======================================================== */
+    /* 모바일 뷰 (기본 모드: 스마트폰 규격 중앙 최적화 프레임) */
+    body.mode-mobile {
+      background-color: #060B14;
+    }
+    body.mode-mobile #appContainer {
+      max-width: 480px;
+      margin: 0 auto;
+      min-height: 100vh;
+      background-color: #0B1422;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.85);
+      border-left: 1px solid #1E2F4A;
+      border-right: 1px solid #1E2F4A;
+      display: flex;
+      flex-direction: column;
+    }
+    body.mode-mobile header {
+      padding-left: 0.875rem;
+      padding-right: 0.875rem;
+      height: 3.5rem;
+    }
+    body.mode-mobile #hdrDeskMeta {
+      display: none !important;
+    }
+    body.mode-mobile #mainLayout {
+      flex-direction: column !important;
+      overflow: visible !important;
+    }
+    body.mode-mobile aside#sidebarPanel {
+      width: 100% !important;
+      height: auto !important;
+      border-right: none !important;
+      border-bottom: 1px solid #1E2F4A !important;
+      padding: 0.875rem !important;
+    }
+    body.mode-mobile main#mainCanvas {
+      padding: 0.875rem !important;
+      overflow: visible !important;
+      gap: 1rem !important;
+      max-width: 100% !important;
+    }
+    body.mode-mobile #topSectionGrid {
+      grid-template-columns: 1fr !important;
+      gap: 1rem !important;
+    }
+
+    /* PC 뷰 (와이드 모니터 대시보드 모드) */
+    body.mode-pc {
+      background-color: #0B1422;
+    }
+    body.mode-pc #appContainer {
+      max-width: 100%;
+      margin: 0;
+      box-shadow: none;
+      border: none;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    body.mode-pc #mainLayout {
+      flex-direction: row !important;
+    }
+    body.mode-pc aside#sidebarPanel {
+      width: 17rem !important;
+      height: calc(100vh - 4rem) !important;
+      border-right: 1px solid #1E2F4A !important;
+    }
+    body.mode-pc main#mainCanvas {
+      max-width: 1720px !important;
+      padding: 1.5rem !important;
+    }
   </style>
 </head>
-<body class="bg-surface text-on-surface min-h-screen flex flex-col font-body-md overflow-x-hidden selection:bg-primary selection:text-on-primary-container">
+<body class="mode-mobile bg-surface text-on-surface min-h-screen flex flex-col font-body-md overflow-x-hidden selection:bg-primary selection:text-on-primary-container">
+
+  <div id="appContainer">
 
   <!-- ==================== TOP NAVIGATION BAR ==================== -->
-  <header class="bg-surface-container flex justify-between items-center w-full px-6 h-16 border-b border-outline-variant z-40 shrink-0">
-    <div class="flex items-center gap-5">
-      <div class="flex items-center gap-2.5 cursor-pointer" onclick="location.reload()">
-        <span class="material-symbols-outlined text-secondary text-[24px]">graphic_eq</span>
-        <span class="text-headline-sm font-bold text-secondary tracking-tight">서용엔지니어링 지능형 누수음 진단 시스템</span>
+  <header class="bg-surface-container flex justify-between items-center w-full px-4 sm:px-6 h-16 border-b border-outline-variant z-40 shrink-0">
+    <div class="flex items-center gap-3 sm:gap-4">
+      <div class="flex items-center gap-2 cursor-pointer" onclick="location.reload()">
+        <span class="material-symbols-outlined text-secondary text-[22px]">graphic_eq</span>
+        <span class="text-sm sm:text-base font-bold text-secondary tracking-tight">서용엔지니어링 누수음 AI</span>
       </div>
-      <div class="h-5 w-[1px] bg-outline-variant hidden sm:block"></div>
+
+      <div class="h-4 w-[1px] bg-outline-variant hidden md:block"></div>
       
-      <div class="hidden sm:flex items-center gap-2">
+      <div class="hidden md:flex items-center gap-2" id="hdrDeskMeta">
         <span class="px-2 py-0.5 rounded bg-surface-container-high border border-outline-variant text-xs text-secondary font-semibold" id="hdrSector">
           상수관망 현장 진단
         </span>
@@ -561,45 +638,33 @@ HTML_PAGE = """
           SY-LEAK-AI
         </span>
       </div>
-
-      <!-- Pipeline Specs Badge -->
-      <div class="hidden xl:flex items-center gap-2 text-xs bg-surface-container-lowest px-2.5 py-1 rounded border border-outline-variant text-on-surface">
-        <span class="flex items-center gap-1 text-primary" id="hdrPressure">
-          <span class="material-symbols-outlined text-[14px]">speed</span> <span id="txtHdrPre">미입력</span>
-        </span>
-        <span class="text-outline-variant">|</span>
-        <span class="text-on-surface-variant font-semibold" id="hdrPipeSpec">미입력 (인자 직접 입력 시 반영)</span>
-      </div>
     </div>
 
-    <!-- Right Controls -->
-    <div class="flex items-center gap-3">
-      <div class="flex items-center gap-2 bg-surface-container-lowest border border-outline-variant px-2.5 py-1 rounded">
-        <span class="relative flex h-2 w-2">
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-          <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-        </span>
-        <span class="text-xs text-on-surface font-mono">AI 엔진 가동 중</span>
+    <!-- Center/Right: View Mode Toggle & Upload -->
+    <div class="flex items-center gap-2 sm:gap-3">
+      <!-- 홈쇼핑 스타일 뷰 모드 전환 토글 (기본: 모바일) -->
+      <div class="flex items-center bg-surface-container-lowest p-0.5 rounded-lg border border-outline-variant shadow-inner">
+        <button id="btnViewMobile" onclick="setViewMode('mobile')" class="px-2 sm:px-2.5 py-1 rounded text-xs font-bold flex items-center gap-1 transition-all bg-primary-container text-white shadow-sm" title="스마트폰 화면 최적화 규격">
+          <span class="material-symbols-outlined text-[15px]">smartphone</span> 모바일
+        </button>
+        <button id="btnViewPC" onclick="setViewMode('pc')" class="px-2 sm:px-2.5 py-1 rounded text-xs font-medium flex items-center gap-1 transition-all text-on-surface-variant hover:text-on-surface" title="와이드 모니터 관제 화면">
+          <span class="material-symbols-outlined text-[15px]">desktop_windows</span> PC
+        </button>
       </div>
 
-      <button onclick="exportReport()" class="hidden sm:flex items-center gap-1.5 bg-surface-container-high hover:bg-surface-bright text-on-surface border border-outline-variant px-3 py-1.5 rounded text-xs font-semibold transition-colors active:scale-[0.98]">
-        <span class="material-symbols-outlined text-[16px]">picture_as_pdf</span>
-        진단 보고서 인쇄 (PDF)
-      </button>
-
       <input type="file" id="fileInput" class="hidden" accept=".wav,.mp4,.m4a,.mp3,.mov,.aac,.flac,.ogg,.wma" onchange="handleFileSelect(event)">
-      <button onclick="document.getElementById('fileInput').click()" class="flex items-center gap-1.5 bg-primary-container hover:bg-primary-container/90 text-white px-3.5 py-1.5 rounded text-xs font-bold transition-all shadow-md active:scale-[0.98]">
+      <button onclick="document.getElementById('fileInput').click()" class="flex items-center gap-1 bg-primary-container hover:bg-primary-container/90 text-white px-3 py-1.5 rounded text-xs font-bold transition-all shadow-md active:scale-[0.98]">
         <span class="material-symbols-outlined text-[16px]">upload_file</span>
-        새 음원 업로드
+        <span class="hidden sm:inline">새 음원</span> 업로드
       </button>
     </div>
   </header>
 
   <!-- ==================== MAIN WORKBENCH LAYOUT ==================== -->
-  <div class="flex flex-1 min-h-[calc(100vh-4rem)] w-full overflow-hidden">
+  <div id="mainLayout" class="flex flex-1 min-h-[calc(100vh-4rem)] w-full overflow-hidden">
     
     <!-- SIDE PANEL (Parameters) -->
-    <aside class="bg-surface-container-low flex flex-col justify-between w-64 h-[calc(100vh-4rem)] p-4 border-r border-outline-variant z-30 shrink-0 overflow-y-auto">
+    <aside id="sidebarPanel" class="bg-surface-container-low flex flex-col justify-between w-64 h-[calc(100vh-4rem)] p-4 border-r border-outline-variant z-30 shrink-0 overflow-y-auto">
       <div class="flex flex-col gap-4">
         <div class="flex items-center gap-3 p-2 bg-surface-container rounded border border-outline-variant">
           <div class="w-8 h-8 rounded bg-surface-container-highest flex items-center justify-center text-secondary">
@@ -670,30 +735,25 @@ HTML_PAGE = """
     </aside>
 
     <!-- MAIN CANVAS -->
-    <main class="flex-1 bg-surface p-5 lg:p-6 overflow-y-auto max-w-[1720px] mx-auto flex flex-col gap-5">
+    <main id="mainCanvas" class="flex-1 bg-surface p-4 lg:p-6 overflow-y-auto max-w-[1720px] mx-auto flex flex-col gap-4 lg:gap-5">
       
       <!-- Context Strip -->
-      <div class="flex flex-wrap items-center justify-between gap-4 pb-2 border-b border-outline-variant/60">
-        <div class="flex items-center gap-2 text-xs font-medium">
+      <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-outline-variant/60 text-xs">
+        <div class="flex items-center gap-2 font-medium">
           <span class="text-on-surface-variant">서용엔지니어링</span>
           <span class="text-outline-variant">/</span>
-          <span class="text-on-surface-variant">상수관망 블록</span>
-          <span class="text-outline-variant">/</span>
-          <span class="text-secondary font-bold">지능형 누수음 정밀 분석 워크벤치</span>
+          <span class="text-secondary font-bold">지능형 누수음 정밀 진단</span>
         </div>
-        <div class="flex items-center gap-4 text-xs">
-          <div class="flex items-center gap-1.5 text-on-surface-variant font-mono">
-            <span class="text-outline">동기화 시각:</span>
+        <div class="flex items-center gap-3 text-xs">
+          <div class="flex items-center gap-1 text-on-surface-variant font-mono">
+            <span class="text-outline">시각:</span>
             <span class="text-on-surface font-semibold" id="dispSyncTime">2026-09-18 10:30:00 KST</span>
           </div>
-          <span class="px-2 py-0.5 rounded bg-surface-container text-[10px] font-mono border border-outline-variant text-primary">
-            음향 물리 신호 정밀 분석 모듈
-          </span>
         </div>
       </div>
 
       <!-- TOP GRID: 8 Col (Waveform Studio) + 4 Col (AI Assessment) -->
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+      <div id="topSectionGrid" class="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5">
         
         <!-- 1. ACOUSTIC WAVEFORM STUDIO (8 Columns) -->
         <section class="lg:col-span-8 bg-surface-container-low rounded border border-outline-variant p-5 flex flex-col justify-between relative shadow-sm">
@@ -964,6 +1024,7 @@ HTML_PAGE = """
 
     </main>
   </div>
+  </div> <!-- end appContainer -->
 
   <!-- Loading Overlay -->
   <div id="loadingOverlay" class="fixed inset-0 bg-surface/85 backdrop-blur-md z-50 flex flex-col items-center justify-center gap-4 hidden">
@@ -1263,6 +1324,33 @@ HTML_PAGE = """
     function exportReport() {
       window.print();
     }
+
+    // ========================================================
+    // 홈쇼핑 스타일 모바일 / PC 뷰 모드 제어 로직 (기본: 모바일)
+    // ========================================================
+    function setViewMode(mode) {
+      const body = document.body;
+      const btnM = document.getElementById('btnViewMobile');
+      const btnP = document.getElementById('btnViewPC');
+      if (!btnM || !btnP) return;
+
+      if (mode === 'pc') {
+        body.classList.remove('mode-mobile');
+        body.classList.add('mode-pc');
+        btnP.className = "px-2 sm:px-2.5 py-1 rounded text-xs font-bold flex items-center gap-1 transition-all bg-primary-container text-white shadow-sm";
+        btnM.className = "px-2 sm:px-2.5 py-1 rounded text-xs font-medium flex items-center gap-1 transition-all text-on-surface-variant hover:text-on-surface";
+      } else {
+        body.classList.remove('mode-pc');
+        body.classList.add('mode-mobile');
+        btnM.className = "px-2 sm:px-2.5 py-1 rounded text-xs font-bold flex items-center gap-1 transition-all bg-primary-container text-white shadow-sm";
+        btnP.className = "px-2 sm:px-2.5 py-1 rounded text-xs font-medium flex items-center gap-1 transition-all text-on-surface-variant hover:text-on-surface";
+      }
+      localStorage.setItem('seoyoung_view_mode', mode);
+    }
+
+    // 초기 로딩: 기본값은 무조건 'mobile' (모바일 우선 로드)
+    const initialViewMode = localStorage.getItem('seoyoung_view_mode') || 'mobile';
+    setViewMode(initialViewMode);
   </script>
 </body>
 </html>
