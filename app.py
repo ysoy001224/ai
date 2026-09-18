@@ -1476,7 +1476,7 @@ HTML_PAGE = """
               <span class="material-symbols-outlined text-secondary text-[26px]">tune</span>
               <div>
                 <h2 class="text-base sm:text-lg font-bold text-white flex items-center gap-2 flex-wrap">
-                  <span>[서용_배관속성_추정모델] 음원 진단 및 설명 모델</span>
+                  <span>누수음 진단 및 설명 모델</span>
                   <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-secondary/20 text-secondary border border-secondary/40 whitespace-nowrap">1.5초 충격음 자동 배제</span>
                 </h2>
                 <p class="text-xs text-on-surface-variant mt-0.5">
@@ -2282,7 +2282,7 @@ HTML_PAGE = """
       const s3Txt = (p.is_leak && p.step3.metal_prob !== null && p.step3.metal_prob !== undefined) ? `${p.step3.material} (금속 ${p.step3.metal_prob}% vs 비금속 ${p.step3.nonmetal_prob}%)` : `${p.step3.material} (${p.step3.status_desc})`;
       const s4Txt = p.is_leak ? `${p.step4.diameter} (${p.step4.status_desc})` : `${p.step4.diameter} (${p.step4.status_desc})`;
 
-      const text = `[서용_배관속성_추정모델 4단계 정밀 분석 리포트]
+      const text = `[누수음 진단 및 설명 모델 4단계 정밀 분석 리포트]
 - 대상 음원: ${fname} (길이: ${currentResult.duration_sec}초)
 - 분석 구간: ${p.truncated_note}
 - STEP 1 (누수 판정): ${p.step1.decision} (누수율 ${p.step1.leak_prob}%)
