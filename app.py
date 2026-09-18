@@ -723,16 +723,7 @@ HTML_PAGE = """
           </p>
         </div>
 
-        <nav class="flex flex-col gap-1">
-          <a class="flex items-center gap-3 px-3 py-2 rounded bg-surface-container-highest text-secondary text-xs font-semibold border-l-2 border-secondary" href="#">
-            <span class="material-symbols-outlined text-[16px]">file_download_done</span>
-            <span>누수음 진단 워크벤치</span>
-          </a>
-          <a class="flex items-center gap-3 px-3 py-2 rounded text-on-surface-variant text-xs hover:text-on-surface hover:bg-surface-container-high transition-colors" href="#">
-            <span class="material-symbols-outlined text-[16px]">analytics</span>
-            <span>스펙트로그램 & PSD 시각화</span>
-          </a>
-        </nav>
+
       </div>
 
       <div class="pt-3 border-t border-outline-variant text-[10px] text-outline text-center">
