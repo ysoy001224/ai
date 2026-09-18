@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-[서용엔지니어링] AquaSense AI AcousticGuard - Telemetry Workbench
+[서용엔지니어링] 지능형 누수음 진단 시스템 - 웹 대시보드
 - 실측 물리 데이터 100% 기반 정밀 진단 시스템
 - 정상(비누수) 시 배관 속성 역추정 배제 (해당없음 표기)
 - 오리지널 3패널 정밀 음향 시각화 (2D Mel-Spectrogram, Welch PSD, AI 듀얼 확률 대조)
@@ -187,7 +187,7 @@ def load_models():
     return pure_clf, pipe_clf, pipe_pkg
 
 pure_clf, pipe_clf, pipe_pkg = load_models()
-print(f"[AquaSense 초기화] 순수: {pure_clf is not None}, 결합: {pipe_clf is not None}, 프로파일러: {pipe_pkg is not None}")
+print(f"[[서용엔지니어링 AI 엔진 초기화] 순수: {pure_clf is not None}, 결합: {pipe_clf is not None}, 프로파일러: {pipe_pkg is not None}")
 
 # ----------------------------------------------------------------------
 # 3. 오리지널 정밀 3패널 차트 생성기 (2D Mel + Welch PSD + AI 대조)
@@ -494,7 +494,7 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
     }
 
 # ----------------------------------------------------------------------
-# 5. AquaSense 텔레메트리 워크벤치 템플릿
+# 5. 누수음 진단 웹 대시보드 템플릿
 # ----------------------------------------------------------------------
 HTML_PAGE = """
 <!DOCTYPE html>
@@ -502,7 +502,7 @@ HTML_PAGE = """
 <head>
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1.0" name="viewport">
-  <title>AquaSense AI AcousticGuard - Telemetry Workbench | 서용엔지니어링</title>
+  <title>[서용엔지니어링] 누수음 진단 시스템</title>
   
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -712,7 +712,7 @@ HTML_PAGE = """
     </div>
   </header>
 
-  <!-- ==================== MAIN WORKBENCH LAYOUT ==================== -->
+  <!-- ==================== MAIN DIAGNOSIS LAYOUT ==================== -->
   <div id="mainLayout" class="flex flex-1 min-h-[calc(100vh-4rem)] w-full overflow-hidden">
     
     <!-- SIDE PANEL (Parameters) -->
@@ -1464,7 +1464,7 @@ HTML_PAGE = """
             ai_decision: currentResult.leak_decision,
             ai_prob: currentResult.primary_prob,
             actual_outcome: outcome,
-            memo: "AquaSense Workbench 실측 피드백"
+            memo: "[서용엔지니어링] 누수음 진단 실측 피드백"
           })
         });
         const toast = document.getElementById('toastFeedback');
@@ -1518,13 +1518,13 @@ def index():
 @app.route('/manifest.json', methods=['GET'])
 def manifest():
     manifest_data = {
-        "name": "AquaSense AI AcousticGuard",
-        "short_name": "AcousticGuard",
+        "name": "[서용엔지니어링] 누수음 진단 시스템",
+        "short_name": "서용 누수음 AI",
         "start_url": "/",
         "display": "standalone",
         "background_color": "#0e141e",
         "theme_color": "#0e141e",
-        "description": "AquaSense AI 상수관망 누수음 의사결정지원 텔레메트리 워크벤치"
+        "description": "서용엔지니어링 상수관망 지능형 누수음 진단 시스템"
     }
     return jsonify(manifest_data)
 
@@ -1617,5 +1617,5 @@ def feedback():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"[AquaSense AI 서버 가동] http://127.0.0.1:{port}")
+    print(f"[[서용엔지니어링] 누수음 진단 서버 가동] http://127.0.0.1:{port}")
     app.run(host='0.0.0.0', port=port, debug=False)
