@@ -785,6 +785,8 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
         '고주파잔존비': round(hf_ratio, 2),
         '중심주파수': round(spectral_centroid, 1),
         '피크주파수': round(peak_freq, 1),
+        'p_high': round(p_high, 1),
+        'spectral_centroid': round(spectral_centroid, 1),
         '분출형태': leak_type_title,
         '적용모델': primary_model,
         'snr_db': snr_db,
@@ -1018,8 +1020,8 @@ HTML_PAGE = """
       </button>
       <button id="tabBtnProfiler" onclick="switchAppTab('profiler')" class="px-2.5 sm:px-3 py-1 rounded text-xs font-medium flex items-center gap-1.5 transition-all text-on-surface-variant hover:text-on-surface whitespace-nowrap">
         <span class="material-symbols-outlined text-[15px]">settings_input_component</span>
-        <span class="hidden sm:inline">배관 속성 정밀 추정 (1.5s 충격음 배제)</span>
-        <span class="sm:hidden">배관속성 추정</span>
+        <span class="hidden sm:inline">누수음 진단 및 설명 모델 (배관속성 정밀추정)</span>
+        <span class="sm:hidden">설명·배관추정</span>
       </button>
     </div>
 
@@ -1348,38 +1350,38 @@ HTML_PAGE = """
         <img id="imgSpectrogram" class="hidden max-w-full rounded shadow-md mx-auto object-contain" alt="음향 스펙트로그램">
       </section>
 
-      <!-- 4-STAT BENTO GRID (물리 음향 세부 지표) -->
+      <!-- 6-STAT BENTO GRID (순수 음향 물리 지표) -->
       <section class="bg-surface-container-low rounded border border-outline-variant p-4 sm:p-5 shadow-sm">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-3 border-b border-outline-variant/70 mb-4">
           <div class="flex items-center gap-2">
-            <span class="material-symbols-outlined text-primary">analytics</span>
-            <h3 class="text-sm sm:text-base font-bold text-on-surface">물리 음향 및 배관 분석 세부 지표</h3>
+            <span class="material-symbols-outlined text-primary">graphic_eq</span>
+            <h3 class="text-sm sm:text-base font-bold text-on-surface">순수 음향 주파수 물리 지표</h3>
           </div>
           <span class="text-[11px] sm:text-xs text-outline font-mono">
-            * 정상 통수 판정 시 배관 속성 역추정을 배제합니다
+            * STFT 및 Welch PSD 신호처리 실측 지표 (배관 속성 역추정은 2번째 설명 모델 탭에서 전담)
           </span>
         </div>
 
         <div class="grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-3.5">
           <!-- 1. 분출 형태 -->
           <div class="bg-surface-container p-3 sm:p-3.5 rounded border border-outline-variant flex flex-col justify-between min-h-[96px] sm:min-h-[105px]">
-            <div class="text-[11px] sm:text-xs text-on-surface-variant mb-1 font-medium">분출 형태</div>
+            <div class="text-[11px] sm:text-xs text-on-surface-variant mb-1 font-medium">분출 음향 유형</div>
             <div class="text-sm sm:text-base font-bold text-on-surface font-mono break-keep leading-snug" id="dispLeakType">--</div>
             <div class="text-[10px] sm:text-[11px] text-outline mt-1.5 break-keep leading-tight" id="dispLeakTypeDesc">누수 판정 시에만 산출</div>
           </div>
 
-          <!-- 2. 추정/입력 관로 재질 -->
+          <!-- 2. 고주파 에너지 점유율 (1.5k~4.0kHz) -->
           <div class="bg-surface-container p-3 sm:p-3.5 rounded border border-outline-variant flex flex-col justify-between min-h-[96px] sm:min-h-[105px]">
-            <div class="text-[11px] sm:text-xs text-on-surface-variant mb-1 font-medium" id="lblPipeMat">추정 관로 재질</div>
-            <div class="text-sm sm:text-base font-bold text-secondary font-mono break-keep leading-snug" id="dispPipeMat">--</div>
-            <div class="text-[10px] sm:text-[11px] text-outline mt-1.5 break-keep leading-tight" id="dispPipeMatDesc">누수 판정 시에만 산출</div>
+            <div class="text-[11px] sm:text-xs text-on-surface-variant mb-1 font-medium">고주파 점유율 (1.5k~4k)</div>
+            <div class="text-base sm:text-lg font-bold text-secondary font-mono" id="dispHighBand">--%</div>
+            <div class="text-[10px] sm:text-[11px] text-secondary/80 mt-1.5 font-medium">미세 제트 마찰음 대역</div>
           </div>
 
-          <!-- 3. 추정/입력 관경 범주 -->
+          <!-- 3. 스펙트럼 중심 주파수 (Spectral Centroid) -->
           <div class="bg-surface-container p-3 sm:p-3.5 rounded border border-outline-variant flex flex-col justify-between min-h-[96px] sm:min-h-[105px]">
-            <div class="text-[11px] sm:text-xs text-on-surface-variant mb-1 font-medium" id="lblPipeDia">추정 관경 범주</div>
-            <div class="text-sm sm:text-base font-bold text-tertiary font-mono break-keep leading-snug" id="dispPipeDia">--</div>
-            <div class="text-[10px] sm:text-[11px] text-outline mt-1.5 break-keep leading-tight" id="dispPipeDiaDesc">누수 판정 시에만 산출</div>
+            <div class="text-[11px] sm:text-xs text-on-surface-variant mb-1 font-medium">스펙트럼 중심 주파수</div>
+            <div class="text-base sm:text-lg font-bold text-tertiary font-mono" id="dispCentroid">-- Hz</div>
+            <div class="text-[10px] sm:text-[11px] text-tertiary/80 mt-1.5 font-medium">에너지 주파수 무게중심</div>
           </div>
 
           <!-- 4. 신호 대 잡음비 (SNR) -->
@@ -1982,28 +1984,15 @@ HTML_PAGE = """
         document.getElementById('dispLeakTypeDesc').innerText = "정상 통수 (누수 없음)";
       }
 
-      // 사용자가 직접 입력한 배관 인자가 있으면 라벨을 '입력'으로 변경하고 현장 입력값 우선 표시
-      const lblMat = document.getElementById('lblPipeMat');
-      const lblDia = document.getElementById('lblPipeDia');
+      // 순수 음향 주파수 물리 지표 (고주파 점유율 & 스펙트럼 중심주파수)
+      const pHighVal = (data.p_high !== undefined && data.p_high !== null) ? Number(data.p_high) : 0.0;
+      const centroidVal = (data.spectral_centroid !== undefined && data.spectral_centroid !== null) ? Math.round(Number(data.spectral_centroid)) : Math.round(data.중심주파수 || 0.0);
 
-      if (lblMat) {
-        lblMat.innerText = data.mat_is_custom ? "배관 관종 (입력)" : "추정 관로 재질";
-      }
-      if (lblDia) {
-        lblDia.innerText = data.di_is_custom ? "배관 구경 (입력)" : "추정 관경 범주";
-      }
+      const elHighBand = document.getElementById('dispHighBand');
+      if (elHighBand) elHighBand.innerText = `${pHighVal.toFixed(1)}%`;
 
-      if (isLeak) {
-        document.getElementById('dispPipeMat').innerText = data.pipe_material || "금속관";
-        document.getElementById('dispPipeMatDesc').innerText = data.mat_desc || "현장 제원 또는 음향 역추정";
-        document.getElementById('dispPipeDia').innerText = data.pipe_diameter || "중구경";
-        document.getElementById('dispPipeDiaDesc').innerText = data.di_desc || "현장 제원 또는 음향 역추정";
-      } else {
-        document.getElementById('dispPipeMat').innerText = data.mat_is_custom ? (data.pipe_material || "현장 제원") : "해당없음 (정상)";
-        document.getElementById('dispPipeMatDesc').innerText = data.mat_is_custom ? "현장 입력 제원" : "정상 통수 (역추정 배제)";
-        document.getElementById('dispPipeDia').innerText = data.di_is_custom ? (data.pipe_diameter || "현장 제원") : "해당없음 (정상)";
-        document.getElementById('dispPipeDiaDesc').innerText = data.di_is_custom ? "현장 입력 제원" : "정상 통수 (역추정 배제)";
-      }
+      const elCentroid = document.getElementById('dispCentroid');
+      if (elCentroid) elCentroid.innerText = `${centroidVal} Hz`;
 
       document.getElementById('dispSnr').innerText = `${data.snr_db} dB`;
       document.getElementById('dispPeakFreq').innerText = `${Math.round(data.peak_freq)} Hz`;
@@ -2738,6 +2727,8 @@ def diagnose():
             'di_is_custom': res.get('di_is_custom', False),
             'hf_ratio': res.get('고주파잔존비', 0.0),
             'peak_freq': res.get('피크주파수', 0.0),
+            'p_high': res.get('p_high', 0.0),
+            'spectral_centroid': res.get('spectral_centroid', 0.0),
             'snr_db': res.get('snr_db', 18.0),
             'continuity': res.get('continuity', 95.0),
             'pipe_spec_text': res.get('pipe_spec_text', '-'),
