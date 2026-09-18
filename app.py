@@ -2,7 +2,7 @@
 """
 [서용엔지니어링] 상수관망 누수음 지능형 진단 클라우드 API & 모바일 PWA 앱
 - 클라우드 24시간 상시 호스팅 및 스마트폰 단독 앱(PWA) 지원
-- 듀얼 AI 판정 엔진: 순수 음향(76.0%) vs 배관 물리 결합(84.9%)
+- 듀얼 AI 판정 엔진: 순수 음향 vs 배관 물리 결합
 - 현장 배관 파라미터(관종, 관경, 심도, 수압) 직접 입력 패널
 - 2D Mel 스펙트로그램 & PSD 시각화 차트 base64 자동 렌더링
 - 현장 굴착 실증 피드백(일치/불일치) 데이터베이스 누적 기능 탑재
@@ -239,10 +239,10 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
 
     if has_pipe_input and pipe_leak_p is not None:
         leak_p = pipe_leak_p
-        primary_model = "배관 물리 결합 모델 (84.9% 검증)"
+        primary_model = "배관 물리 결합 모델 (현장 인자 반영)"
     else:
         leak_p = pure_leak_p
-        primary_model = "순수 음향 진단 모델 (76.0% 검증)"
+        primary_model = "순수 음향 진단 모델 (음향 패턴 분석)"
 
     is_leak = (leak_p >= 50.0)
     res_str = "누수" if is_leak else "비누수"
@@ -325,7 +325,7 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
         ax_psd.legend(facecolor='#0E1C3E', edgecolor='#27417D', labelcolor='#E2E8F0', fontsize=7, loc='upper right')
 
         # 듀얼 확률 게이지
-        labels = ['순수(76%)', '결합(85%)']
+        labels = ['순수 음향', '배관 결합']
         if pipe_leak_p is not None:
             values = [pure_leak_p, pipe_leak_p]
             colors = ['#F87171' if v >= 50.0 else '#38BDF8' for v in values]
@@ -423,7 +423,7 @@ HTML_PAGE = """
       <div>
         <label class="block font-medium text-slate-300 mb-1">관종(재질)</label>
         <select id="mopCode" class="input-field w-full rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-blue-400">
-          <option value="-1.0">미지정 (순수 음향 76.0% 모델로 진단)</option>
+          <option value="-1.0">미지정 (순수 음향 모델로 진단)</option>
           <option value="1.0">금속관 (주철 / 강관 / 동관 / 스테인리스)</option>
           <option value="2.0">플라스틱관 (PE / PVC / HI-VP / PB)</option>
         </select>
@@ -474,7 +474,7 @@ HTML_PAGE = """
       
       <div class="mb-2">
         <div class="flex justify-between text-[11px] mb-1">
-          <span class="text-slate-300">순수 음향 모델 (76.0% 실측)</span>
+          <span class="text-slate-300">순수 음향 모델</span>
           <span class="font-bold text-white" id="valPure">0.0%</span>
         </div>
         <div class="w-full bg-slate-800 rounded-full h-2.5">
@@ -484,7 +484,7 @@ HTML_PAGE = """
 
       <div>
         <div class="flex justify-between text-[11px] mb-1">
-          <span class="text-slate-300">배관 물리 결합 (84.9% 실측)</span>
+          <span class="text-slate-300">배관 물리 결합 모델</span>
           <span class="font-bold text-white" id="valPipe">-</span>
         </div>
         <div class="w-full bg-slate-800 rounded-full h-2.5">
@@ -512,7 +512,7 @@ HTML_PAGE = """
       </div>
     </div>
 
-    <!-- 현장 굴착 실증 피드백 기록 영역 (TRL 6 도약용) -->
+    <!-- 현장 굴착 실증 피드백 기록 영역 -->
     <div class="card rounded-2xl p-4 shadow-lg border-emerald-600/40">
       <h3 class="text-xs font-bold text-emerald-400 mb-1.5 flex items-center gap-1">
         <span>📝 현장 굴착 실증 결과 피드백 (필드 검증용)</span>
@@ -534,8 +534,8 @@ HTML_PAGE = """
 
   <!-- 푸터 -->
   <footer class="mt-4 p-3 bg-slate-900/60 rounded-2xl border border-slate-800 text-[10px] text-slate-400 leading-normal">
-    <p class="font-bold text-slate-300 mb-1">⚠️ 현장 실증 원칙 (TRL 4~5 기준)</p>
-    <p>• 온실 속 90% 과적합을 배제하고, 순수 음향 76.0%, 배관 결합 84.9% 실측치를 투명하게 기준으로 삼습니다.</p>
+    <p class="font-bold text-slate-300 mb-1">⚠️ 현장 실증 참고사항</p>
+    <p>• 현장 소음 및 지중 토양 감쇠를 고려하여, 최종 굴착 전 상관식 탐사기와 밸브 조작을 병행하십시오.</p>
     <p>• 지하 감쇠 및 도로 소음에 따른 오탐이 있을 수 있으므로, 최종 굴착 전 상관식 탐사기와 밸브 조작을 병행하십시오.</p>
   </footer>
 
