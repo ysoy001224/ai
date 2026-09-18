@@ -1025,6 +1025,29 @@ HTML_PAGE = """
           </p>
         </div>
 
+        <!-- 음원 파일 업로드 창 (배관 파라미터 아래) -->
+        <div onclick="document.getElementById('fileInput').click()" 
+             ondragover="event.preventDefault(); this.classList.add('border-secondary', 'bg-surface-container-high');"
+             ondragleave="this.classList.remove('border-secondary', 'bg-surface-container-high');"
+             ondrop="handleFileDrop(event)"
+             class="p-3.5 bg-surface-container hover:bg-surface-container-high border-2 border-dashed border-secondary/50 hover:border-secondary rounded-xl flex flex-col items-center justify-center gap-2 cursor-pointer transition-all duration-200 shadow-md group active:scale-[0.99] text-center">
+          <div class="w-10 h-10 rounded-xl bg-primary-container/20 group-hover:bg-primary-container text-secondary group-hover:text-white flex items-center justify-center transition-colors shadow-inner">
+            <span class="material-symbols-outlined text-2xl">cloud_upload</span>
+          </div>
+          <div>
+            <h3 class="text-xs sm:text-sm font-bold text-white group-hover:text-secondary transition-colors">
+              음원 파일 업로드 및 진단
+            </h3>
+            <p class="text-[11px] text-on-surface-variant mt-0.5 leading-tight">
+              클릭 또는 드래그 앤 드롭<br>
+              <span class="text-[10px] text-outline font-mono">(WAV, MP4, MP3 지원)</span>
+            </p>
+          </div>
+          <button type="button" class="w-full mt-1 py-1.5 px-3 rounded-lg bg-primary-container group-hover:bg-primary-container/90 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm pointer-events-none">
+            <span class="material-symbols-outlined text-[15px]">file_open</span>
+            <span>파일 선택</span>
+          </button>
+        </div>
 
       </div>
 
@@ -1048,37 +1071,6 @@ HTML_PAGE = """
         </div>
         <div class="text-xs text-on-surface-variant font-mono whitespace-nowrap shrink-0">
           <span class="text-outline">시각:</span> <span class="text-on-surface font-semibold" id="dispSyncTime">2026-09-18 11:00 KST</span>
-        </div>
-      </div>
-
-      <!-- PRIMARY UPLOAD DROPZONE BANNER (원터치 & 드래그 앤 드롭 대형 업로드 존) -->
-      <div onclick="document.getElementById('fileInput').click()" 
-           ondragover="event.preventDefault(); this.classList.add('border-secondary', 'bg-surface-container-high');"
-           ondragleave="this.classList.remove('border-secondary', 'bg-surface-container-high');"
-           ondrop="handleFileDrop(event)"
-           class="w-full bg-surface-container-low hover:bg-surface-container border-2 border-dashed border-secondary/50 hover:border-secondary rounded-xl p-3.5 sm:p-5 flex items-center justify-between gap-3 cursor-pointer transition-all duration-200 shadow-md group active:scale-[0.99]">
-        <div class="flex items-center gap-3 min-w-0 flex-1">
-          <div class="w-11 h-11 rounded-xl bg-primary-container/20 group-hover:bg-primary-container text-secondary group-hover:text-white flex items-center justify-center transition-colors shadow-inner shrink-0">
-            <span class="material-symbols-outlined text-2xl">cloud_upload</span>
-          </div>
-          <div class="min-w-0 flex-1">
-            <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-              <h3 class="text-sm sm:text-base font-bold text-white group-hover:text-secondary transition-colors whitespace-nowrap">
-                음원 파일 업로드 및 진단
-              </h3>
-              <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-secondary/15 text-secondary border border-secondary/30 whitespace-nowrap shrink-0">
-                터치 선택
-              </span>
-            </div>
-            <p class="text-xs text-on-surface-variant mt-0.5 truncate whitespace-nowrap">
-              탭하거나 파일을 끌어다 놓으세요 (WAV, MP4 지원)
-            </p>
-          </div>
-        </div>
-        <div class="shrink-0 hidden md:block">
-          <button type="button" class="px-4 py-2 rounded-lg bg-primary-container group-hover:bg-primary-container/90 text-white text-xs font-bold flex items-center gap-1.5 shadow-md pointer-events-none whitespace-nowrap">
-            <span class="material-symbols-outlined text-[16px]">file_open</span> 파일 선택
-          </button>
         </div>
       </div>
 
@@ -1369,37 +1361,6 @@ HTML_PAGE = """
       <!-- ==================== TAB 2: 배관 속성 정밀 추정 뷰 (1.5초 과도충격음 배제 설명모델) ==================== -->
       <div id="tabViewProfiler" class="hidden flex flex-col gap-4 lg:gap-5">
         
-        <!-- PRIMARY UPLOAD DROPZONE BANNER (원터치 & 드래그 앤 드롭 대형 업로드 존) -->
-        <div onclick="document.getElementById('fileInput').click()" 
-             ondragover="event.preventDefault(); this.classList.add('border-secondary', 'bg-surface-container-high');"
-             ondragleave="this.classList.remove('border-secondary', 'bg-surface-container-high');"
-             ondrop="handleFileDrop(event)"
-             class="w-full bg-surface-container-low hover:bg-surface-container border-2 border-dashed border-secondary/50 hover:border-secondary rounded-xl p-3.5 sm:p-5 flex items-center justify-between gap-3 cursor-pointer transition-all duration-200 shadow-md group active:scale-[0.99]">
-          <div class="flex items-center gap-3 min-w-0 flex-1">
-            <div class="w-11 h-11 rounded-xl bg-primary-container/20 group-hover:bg-primary-container text-secondary group-hover:text-white flex items-center justify-center transition-colors shadow-inner shrink-0">
-              <span class="material-symbols-outlined text-2xl">cloud_upload</span>
-            </div>
-            <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-                <h3 class="text-sm sm:text-base font-bold text-white group-hover:text-secondary transition-colors whitespace-nowrap">
-                  음원 파일 업로드 및 진단
-                </h3>
-                <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-secondary/15 text-secondary border border-secondary/30 whitespace-nowrap shrink-0">
-                  터치 선택
-                </span>
-              </div>
-              <p class="text-xs text-on-surface-variant mt-0.5 truncate whitespace-nowrap">
-                탭하거나 파일을 끌어다 놓으세요 (WAV, MP4 지원)
-              </p>
-            </div>
-          </div>
-          <div class="shrink-0 hidden md:block">
-            <button type="button" class="px-4 py-2 rounded-lg bg-primary-container group-hover:bg-primary-container/90 text-white text-xs font-bold flex items-center gap-1.5 shadow-md pointer-events-none whitespace-nowrap">
-              <span class="material-symbols-outlined text-[16px]">file_open</span> 파일 선택
-            </button>
-          </div>
-        </div>
-
         <!-- 개요 배너: 1.5초 과도 충격음 제거 알고리즘 -->
         <section class="bg-surface-container-low rounded border border-secondary/30 p-4 sm:p-5 shadow-sm relative overflow-hidden">
           <div class="absolute -right-8 -top-8 w-40 h-40 rounded-full bg-secondary/5 blur-2xl pointer-events-none"></div>
