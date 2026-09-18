@@ -752,6 +752,37 @@ HTML_PAGE = """
         </div>
       </div>
 
+      <!-- PRIMARY UPLOAD DROPZONE BANNER (원터치 & 드래그 앤 드롭 대형 업로드 존) -->
+      <div onclick="document.getElementById('fileInput').click()" 
+           ondragover="event.preventDefault(); this.classList.add('border-secondary', 'bg-surface-container-high');"
+           ondragleave="this.classList.remove('border-secondary', 'bg-surface-container-high');"
+           ondrop="handleFileDrop(event)"
+           class="w-full bg-surface-container-low hover:bg-surface-container border-2 border-dashed border-secondary/50 hover:border-secondary rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 cursor-pointer transition-all duration-200 shadow-md group active:scale-[0.99]">
+        <div class="flex items-center gap-3.5 w-full sm:w-auto">
+          <div class="w-12 h-12 rounded-xl bg-primary-container/20 group-hover:bg-primary-container text-secondary group-hover:text-white flex items-center justify-center transition-colors shadow-inner shrink-0">
+            <span class="material-symbols-outlined text-2xl">cloud_upload</span>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 class="text-sm sm:text-base font-bold text-white group-hover:text-secondary transition-colors">
+                음원 파일 업로드 및 정밀 진단
+              </h3>
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-secondary/15 text-secondary border border-secondary/30">
+                터치하여 선택
+              </span>
+            </div>
+            <p class="text-xs text-on-surface-variant mt-0.5">
+              여기를 탭하거나 파일을 끌어다 놓으세요 (WAV, MP4, M4A, MP3 지원)
+            </p>
+          </div>
+        </div>
+        <div class="w-full sm:w-auto flex items-center justify-end">
+          <button type="button" class="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-primary-container group-hover:bg-primary-container/90 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-md pointer-events-none transition-all">
+            <span class="material-symbols-outlined text-[18px]">file_open</span> 파일 선택하기
+          </button>
+        </div>
+      </div>
+
       <!-- TOP GRID: 8 Col (Waveform Studio) + 4 Col (AI Assessment) -->
       <div id="topSectionGrid" class="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5">
         
@@ -1024,6 +1055,16 @@ HTML_PAGE = """
 
     </main>
   </div>
+
+  <!-- MOBILE FLOATING ACTION BAR (모바일 모드 하단 고정 원터치 업로드 버튼) -->
+  <div class="block sm:hidden fixed bottom-5 left-4 right-4 z-40">
+    <button onclick="document.getElementById('fileInput').click()" 
+            class="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-primary-container to-secondary text-white font-bold text-sm flex items-center justify-center gap-2 shadow-2xl active:scale-[0.98] border border-white/20 backdrop-blur-md">
+      <span class="material-symbols-outlined text-[20px]">upload_file</span>
+      <span>새 음원 파일 업로드 및 진단</span>
+    </button>
+  </div>
+
   </div> <!-- end appContainer -->
 
   <!-- Loading Overlay -->
@@ -1128,6 +1169,14 @@ HTML_PAGE = """
       const clickX = e.clientX - rect.left;
       const ratio = Math.max(0, Math.min(1, clickX / rect.width));
       audio.currentTime = ratio * audio.duration;
+    }
+
+    function handleFileDrop(e) {
+      e.preventDefault();
+      e.currentTarget.classList.remove('border-secondary', 'bg-surface-container-high');
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        handleFileSelect({ target: { files: e.dataTransfer.files } });
+      }
     }
 
     async function handleFileSelect(e) {
