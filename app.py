@@ -539,26 +539,26 @@ HTML_PAGE = """
     <div class="flex items-center gap-5">
       <div class="flex items-center gap-2.5 cursor-pointer" onclick="location.reload()">
         <span class="material-symbols-outlined text-secondary text-[24px]">graphic_eq</span>
-        <span class="text-headline-sm font-bold text-secondary tracking-tight">AquaSense AI AcousticGuard</span>
+        <span class="text-headline-sm font-bold text-secondary tracking-tight">서용엔지니어링 지능형 누수음 진단 시스템</span>
       </div>
       <div class="h-5 w-[1px] bg-outline-variant hidden sm:block"></div>
       
       <div class="hidden sm:flex items-center gap-2">
         <span class="px-2 py-0.5 rounded bg-surface-container-high border border-outline-variant text-xs text-secondary font-semibold" id="hdrSector">
-          인프라 구획: SECTION_B4
+          상수관망 현장 진단
         </span>
         <span class="text-xs text-on-surface-variant font-mono" id="hdrDiagId">
-          AG-2026-SY01
+          SY-LEAK-AI
         </span>
       </div>
 
       <!-- Pipeline Specs Badge -->
       <div class="hidden xl:flex items-center gap-2 text-xs bg-surface-container-lowest px-2.5 py-1 rounded border border-outline-variant text-on-surface">
         <span class="flex items-center gap-1 text-primary" id="hdrPressure">
-          <span class="material-symbols-outlined text-[14px]">speed</span> <span id="txtHdrPre">2.5 bar</span>
+          <span class="material-symbols-outlined text-[14px]">speed</span> <span id="txtHdrPre">미입력</span>
         </span>
         <span class="text-outline-variant">|</span>
-        <span class="text-on-surface-variant font-semibold" id="hdrPipeSpec">DIP 150mm (주철관)</span>
+        <span class="text-on-surface-variant font-semibold" id="hdrPipeSpec">미입력 (인자 직접 입력 시 반영)</span>
       </div>
     </div>
 
@@ -569,12 +569,12 @@ HTML_PAGE = """
           <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
           <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
         </span>
-        <span class="text-xs text-on-surface font-mono">CH-04 ONLINE</span>
+        <span class="text-xs text-on-surface font-mono">AI 엔진 가동 중</span>
       </div>
 
       <button onclick="exportReport()" class="hidden sm:flex items-center gap-1.5 bg-surface-container-high hover:bg-surface-bright text-on-surface border border-outline-variant px-3 py-1.5 rounded text-xs font-semibold transition-colors active:scale-[0.98]">
         <span class="material-symbols-outlined text-[16px]">picture_as_pdf</span>
-        Export Report
+        진단 보고서 인쇄 (PDF)
       </button>
 
       <input type="file" id="fileInput" class="hidden" accept=".wav,.mp4,.m4a,.mp3,.mov,.aac,.flac,.ogg,.wma" onchange="handleFileSelect(event)">
@@ -593,12 +593,12 @@ HTML_PAGE = """
       <div class="flex flex-col gap-4">
         <div class="flex items-center gap-3 p-2 bg-surface-container rounded border border-outline-variant">
           <div class="w-8 h-8 rounded bg-surface-container-highest flex items-center justify-center text-secondary">
-            <span class="material-symbols-outlined">sensors</span>
+            <span class="material-symbols-outlined">water_drop</span>
           </div>
           <div class="flex flex-col overflow-hidden">
-            <span class="text-xs font-bold text-on-surface truncate">Sector 04-B Subsea</span>
+            <span class="text-xs font-bold text-on-surface truncate">상수관망 관제 구역</span>
             <span class="text-[10px] text-primary flex items-center gap-1">
-              <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span> 64/64 Sensors Online
+              <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span> 듀얼 AI 진단 엔진 가동 중
             </span>
           </div>
         </div>
@@ -645,11 +645,11 @@ HTML_PAGE = """
         <nav class="flex flex-col gap-1">
           <a class="flex items-center gap-3 px-3 py-2 rounded bg-surface-container-highest text-secondary text-xs font-semibold border-l-2 border-secondary" href="#">
             <span class="material-symbols-outlined text-[16px]">file_download_done</span>
-            <span>Acoustic Workbench</span>
+            <span>누수음 진단 워크벤치</span>
           </a>
           <a class="flex items-center gap-3 px-3 py-2 rounded text-on-surface-variant text-xs hover:text-on-surface hover:bg-surface-container-high transition-colors" href="#">
             <span class="material-symbols-outlined text-[16px]">analytics</span>
-            <span>스펙트로그램 분석</span>
+            <span>스펙트로그램 & PSD 시각화</span>
           </a>
         </nav>
       </div>
@@ -665,11 +665,11 @@ HTML_PAGE = """
       <!-- Context Strip -->
       <div class="flex flex-wrap items-center justify-between gap-4 pb-2 border-b border-outline-variant/60">
         <div class="flex items-center gap-2 text-xs font-medium">
-          <span class="text-on-surface-variant">관제 센터</span>
+          <span class="text-on-surface-variant">서용엔지니어링</span>
           <span class="text-outline-variant">/</span>
-          <span class="text-on-surface-variant">구역 04-B</span>
+          <span class="text-on-surface-variant">상수관망 블록</span>
           <span class="text-outline-variant">/</span>
-          <span class="text-secondary font-bold">Acoustic Workbench 정밀 파형 분석</span>
+          <span class="text-secondary font-bold">지능형 누수음 정밀 분석 워크벤치</span>
         </div>
         <div class="flex items-center gap-4 text-xs">
           <div class="flex items-center gap-1.5 text-on-surface-variant font-mono">
@@ -677,7 +677,7 @@ HTML_PAGE = """
             <span class="text-on-surface font-semibold" id="dispSyncTime">2026-09-18 10:30:00 KST</span>
           </div>
           <span class="px-2 py-0.5 rounded bg-surface-container text-[10px] font-mono border border-outline-variant text-primary">
-            DA-Module v4.2.8 Calibrated
+            음향 물리 신호 정밀 분석 모듈
           </span>
         </div>
       </div>
@@ -764,7 +764,7 @@ HTML_PAGE = """
           <div class="flex items-center justify-between border-b border-outline-variant/70 pb-3">
             <div class="flex items-center gap-2">
               <span class="material-symbols-outlined text-tertiary">psychology</span>
-              <h2 class="text-base font-bold text-on-surface">AI Leak Assessment</h2>
+              <h2 class="text-base font-bold text-on-surface">AI 정밀 누수 평가 엔진</h2>
             </div>
             <span id="badgeAssessment" class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase bg-surface-container text-outline border border-outline-variant">
               대기 중
@@ -780,7 +780,7 @@ HTML_PAGE = """
               </svg>
               <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
                 <span class="text-3xl font-black text-white font-mono leading-none" id="dialProb">--%</span>
-                <span class="text-xs font-bold tracking-widest mt-1 text-secondary" id="dialTier">STANDBY</span>
+                <span class="text-xs font-bold tracking-widest mt-1 text-secondary" id="dialTier">대기</span>
                 <span class="text-[10px] text-outline mt-0.5" id="dialSubtext">누수 확률 지수</span>
               </div>
             </div>
@@ -871,7 +871,7 @@ HTML_PAGE = """
 
           <!-- 4. 추정 누수량 -->
           <div class="bg-surface-container p-3.5 rounded border border-outline-variant flex flex-col justify-between">
-            <div class="text-xs text-on-surface-variant mb-1">추정 누수량 (Loss Rate)</div>
+            <div class="text-xs text-on-surface-variant mb-1">추정 누수량</div>
             <div class="text-base font-bold text-error font-mono truncate" id="dispFlowRate">--</div>
             <div class="text-[11px] text-outline mt-1" id="dispFlowDesc">정상 시 0.0 L/min</div>
           </div>
@@ -890,9 +890,9 @@ HTML_PAGE = """
             <div class="text-[11px] text-on-surface-variant mt-1">Welch PSD 최대치</div>
           </div>
 
-          <!-- 7. 고주파 잔존비 (HF Ratio) -->
+          <!-- 7. 고주파 잔존비 -->
           <div class="bg-surface-container p-3.5 rounded border border-outline-variant flex flex-col justify-between">
-            <div class="text-xs text-on-surface-variant mb-1">고주파 잔존비 (HF)</div>
+            <div class="text-xs text-on-surface-variant mb-1">고주파 잔존비</div>
             <div class="text-lg font-bold text-tertiary font-mono" id="dispHfRatio">--</div>
             <div class="text-[11px] text-on-surface-variant mt-1">1.5k~4k / 300~700</div>
           </div>
