@@ -366,7 +366,8 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
         except Exception:
             pure_leak_p = 50.0
 
-    has_pipe_input = (mop_code > 0 or pipe_di > 0)
+    # 배관 물리 결합 모델은 배관 구경(pipe_di)이 0보다 큰 유효값으로 입력되었을 때만 활성화 (결측치 편향 오류 방지)
+    has_pipe_input = (pipe_di > 0)
     pipe_leak_p = None
     if has_pipe_input and pipe_clf is not None:
         meta_vec = np.array([pipe_di, eff_depth, before_pre, mop_code, -1.0], dtype=np.float32)
@@ -525,6 +526,29 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
     plot_b64 = generate_spectrogram_plot_b64(
         raw_audio, sr, dur, fname, is_leak, f, psd_calib, peak_freq, pure_leak_p, pipe_leak_p
     )
+
+    # 인터랙티브 Plotly용 벡터 데이터 추출
+    from scipy.ndimage import zoom
+    _, _, zxx_full = stft(raw_audio, fs=sr, nperseg=512, noverlap=384)
+    p_spec_full = np.abs(zxx_full)**2
+    mel_fb_full = get_mel_filterbank(sr=sr, n_fft=512, n_mels=60, fmin=0.0, fmax=4000.0)
+    mel_spec_full = np.dot(mel_fb_full, p_spec_full)
+    log_mel_full = 10.0 * np.log10(mel_spec_full + 1e-9)
+
+    target_w = 120
+    scale_w = target_w / max(1, log_mel_full.shape[1])
+    ds_mel = zoom(log_mel_full, (1.0, scale_w), order=1)
+    interactive_spec_z = [[round(float(v), 1) for v in row] for row in ds_mel]
+
+    interactive_chart = {
+        'spec_z': interactive_spec_z,
+        'spec_dur': round(float(dur), 2),
+        'psd_f': [round(float(x), 1) for x in f],
+        'psd_y': [round(float(x), 5) for x in psd_calib],
+        'peak_freq': round(float(peak_freq), 1),
+        'pure_p': round(float(pure_leak_p), 1) if pure_leak_p is not None else 0.0,
+        'pipe_p': round(float(pipe_leak_p), 1) if pipe_leak_p is not None else None
+    }
 
     # 실측 웨이브폼 바 데이터 (100개 슬롯의 진폭값)
     step = max(1, len(raw_audio) // 80)
@@ -759,6 +783,7 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
         'diag_conclusion': diag_conclusion,
         'summary_desc': diag_conclusion,
         'plot_b64': plot_b64,
+        'interactive_chart': interactive_chart,
         'waveform_bars': waveform_bars,
         'contributing_factors': contributing_factors,
         'pipe_profiler_report': pipe_profiler_report
@@ -782,6 +807,7 @@ HTML_PAGE = """
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
   
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <script id="tailwind-config">
     tailwind.config = {
       darkMode: "class",
@@ -1243,26 +1269,71 @@ HTML_PAGE = """
         </section>
       </div>
 
-      <!-- MIDDLE SECTION: 3-PANEL SCIENTIFIC ACOUSTIC SPECTROGRAM -->
-      <section class="bg-surface-container-low rounded border border-outline-variant p-5 shadow-sm">
-        <div class="flex items-center justify-between pb-3 border-b border-outline-variant/70 mb-4">
+      <!-- MIDDLE SECTION: INTERACTIVE SCIENTIFIC ACOUSTIC SPECTROGRAM & PSD -->
+      <section class="bg-surface-container-low rounded border border-outline-variant p-4 sm:p-5 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-outline-variant/70 mb-3">
           <div class="flex items-center gap-2">
             <span class="material-symbols-outlined text-secondary">equalizer</span>
-            <h3 class="text-base font-bold text-on-surface">음향 스펙트로그램 & PSD 정밀 시각화</h3>
+            <h3 class="text-sm sm:text-base font-bold text-on-surface">인터랙티브 정밀 음향 시각화</h3>
+            <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-secondary/15 text-secondary border border-secondary/30 hidden sm:inline-block">벡터 반응형 / 줌·호버 지원</span>
           </div>
-          <span class="text-xs text-outline font-mono">
-            음향 주파수 스펙트럼 및 다차원 신호 분석
-          </span>
+          
+          <!-- View switcher buttons -->
+          <div class="flex items-center gap-1 bg-surface-container p-0.5 rounded border border-outline-variant text-[11px] font-medium">
+            <button type="button" id="btnChartAll" onclick="switchChartMode('all')" class="px-2.5 py-1 rounded bg-secondary text-[#001f24] font-bold transition-all">통합 3단</button>
+            <button type="button" id="btnChartSpec" onclick="switchChartMode('spec')" class="px-2.5 py-1 rounded hover:bg-surface-bright text-on-surface-variant transition-all">2D 스펙트로그램</button>
+            <button type="button" id="btnChartPsd" onclick="switchChartMode('psd')" class="px-2.5 py-1 rounded hover:bg-surface-bright text-on-surface-variant transition-all">위험대역 PSD</button>
+            <button type="button" id="btnChartDual" onclick="switchChartMode('dual')" class="px-2.5 py-1 rounded hover:bg-surface-bright text-on-surface-variant transition-all">AI 판정 대조</button>
+          </div>
         </div>
 
-        <!-- 실측 3패널 차트 이미지 표시 영역 -->
-        <div class="w-full bg-[#0B1422] rounded border border-outline-variant/80 p-3 sm:p-4 min-h-[220px] sm:min-h-[280px] flex items-center justify-center overflow-hidden">
-          <img id="imgSpectrogram" class="max-w-full lg:max-w-2xl xl:max-w-3xl max-h-[380px] sm:max-h-[420px] w-auto h-auto rounded shadow-md hidden object-contain mx-auto transition-all" alt="음향 스펙트로그램 및 PSD 시각화">
-          <div id="plotPlaceholder" class="text-center py-10 sm:py-14 text-outline">
-            <span class="material-symbols-outlined text-4xl mb-2 text-outline/50">analytics</span>
-            <p class="text-xs">음원을 업로드하면 정밀 주파수 스펙트럼과 물리 음향 분석 곡선이 생성됩니다.</p>
+        <!-- Interactive Plotly Containers -->
+        <div id="plotInteractiveWrapper" class="hidden w-full flex flex-col gap-3">
+          <!-- 1. 2D Mel-Spectrogram -->
+          <div id="chartSpecCard" class="w-full bg-[#0B1422] rounded border border-outline-variant/80 p-2 sm:p-3 transition-all">
+            <div class="flex items-center justify-between px-2 pb-1 text-xs text-on-surface-variant">
+              <span class="font-bold text-slate-200 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-rose-500"></span> 2D Mel-Spectrogram (시간-주파수 실측 에너지 분포)
+              </span>
+              <span class="text-[11px] text-outline font-mono hidden sm:inline">마우스 드래그: 줌인 | 더블클릭: 초기화</span>
+            </div>
+            <div id="plotMelSpec" class="w-full h-[220px] sm:h-[250px]"></div>
+          </div>
+
+          <!-- 2. PSD & AI Dual split row on desktop -->
+          <div id="chartBottomRow" class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <!-- PSD Spectrum -->
+            <div id="chartPsdCard" class="bg-[#0B1422] rounded border border-outline-variant/80 p-2 sm:p-3 transition-all">
+              <div class="flex items-center justify-between px-2 pb-1 text-xs text-on-surface-variant">
+                <span class="font-bold text-slate-200 flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-cyan-400"></span> 직관형 음향 스펙트럼 (위험 주파수 대역 구획)
+                </span>
+                <span class="text-[11px] text-amber-300 font-mono font-bold" id="dispPeakBadge">피크 -- Hz</span>
+              </div>
+              <div id="plotWelchPsd" class="w-full h-[200px] sm:h-[230px]"></div>
+            </div>
+
+            <!-- AI Dual Bar -->
+            <div id="chartDualCard" class="bg-[#0B1422] rounded border border-outline-variant/80 p-2 sm:p-3 transition-all">
+              <div class="flex items-center justify-between px-2 pb-1 text-xs text-on-surface-variant">
+                <span class="font-bold text-slate-200 flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-amber-400"></span> AI 듀얼 판정 확률 대조 (순수 음향 vs 배관 결합)
+                </span>
+                <span class="text-[11px] text-rose-400 font-mono font-bold">판정선 50%</span>
+              </div>
+              <div id="plotDualBar" class="w-full h-[200px] sm:h-[230px]"></div>
+            </div>
           </div>
         </div>
+
+        <!-- Initial Placeholder when no audio is uploaded -->
+        <div id="plotPlaceholder" class="text-center py-10 sm:py-14 text-outline bg-[#0B1422] rounded border border-outline-variant/80">
+          <span class="material-symbols-outlined text-4xl mb-2 text-outline/50">analytics</span>
+          <p class="text-xs">음원을 업로드하면 인터랙티브 주파수 스펙트럼과 물리 음향 분석 차트가 실시간 생성됩니다.</p>
+        </div>
+
+        <!-- Fallback static image if needed -->
+        <img id="imgSpectrogram" class="hidden max-w-full rounded shadow-md mx-auto object-contain" alt="음향 스펙트로그램">
       </section>
 
       <!-- 4-STAT BENTO GRID (물리 음향 세부 지표) -->
@@ -1880,8 +1951,10 @@ HTML_PAGE = """
       document.getElementById('dispPipeProb').innerText = (data.pipe_prob !== null && data.pipe_prob !== undefined) ? data.pipe_prob.toFixed(1) + "%" : "미적용";
       document.getElementById('dispFindings').innerText = data.summary_desc;
 
-      // 실측 3패널 차트 갱신 (2D Mel + Welch PSD + AI 대조)
-      if (data.plot_b64) {
+      // 실측 인터랙티브 차트 갱신 (Plotly.js 벡터 렌더링)
+      if (data.interactive_chart && typeof Plotly !== 'undefined') {
+        renderInteractiveCharts(data.interactive_chart, isLeak, data.filename);
+      } else if (data.plot_b64) {
         const img = document.getElementById('imgSpectrogram');
         img.src = 'data:image/png;base64,' + data.plot_b64;
         img.classList.remove('hidden');
@@ -2161,6 +2234,236 @@ ${p.final_desc || ''}`;
       });
     }
 
+    function renderInteractiveCharts(chartData, isLeak, filename) {
+      if (!chartData || typeof Plotly === 'undefined') return;
+
+      document.getElementById('plotPlaceholder').classList.add('hidden');
+      document.getElementById('plotInteractiveWrapper').classList.remove('hidden');
+
+      const config = {
+        responsive: true,
+        displayModeBar: true,
+        displaylogo: false,
+        modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+        toImageButtonOptions: {
+          format: 'png',
+          filename: filename ? filename + '_chart' : 'acoustic_chart',
+          scale: 2
+        }
+      };
+
+      // 1. 2D Mel-Spectrogram Heatmap
+      const dur = chartData.spec_dur || 5.0;
+      const nCols = chartData.spec_z[0].length;
+      const timeAxis = Array.from({length: nCols}, (_, i) => ((i / (nCols - 1)) * dur).toFixed(2));
+      const freqAxis = Array.from({length: chartData.spec_z.length}, (_, i) => Math.round((i / (chartData.spec_z.length - 1)) * 4000));
+
+      const specTrace = {
+        z: chartData.spec_z,
+        x: timeAxis,
+        y: freqAxis,
+        type: 'heatmap',
+        colorscale: 'Plasma',
+        colorbar: {
+          title: 'dB',
+          titlefont: {color: '#8FA8D6', size: 10},
+          tickfont: {color: '#8FA8D6', size: 9},
+          thickness: 10,
+          len: 0.85
+        },
+        hovertemplate: '시간: %{x}초<br>주파수: %{y} Hz<br>에너지: %{z} dB<extra></extra>'
+      };
+
+      const specLayout = {
+        paper_bgcolor: '#0B1422',
+        plot_bgcolor: '#131E32',
+        margin: {l: 45, r: 25, t: 15, b: 35},
+        xaxis: {
+          title: {text: '시간 (초)', font: {color: '#8FA8D6', size: 10}},
+          tickfont: {color: '#8FA8D6', size: 9},
+          gridcolor: '#223659',
+          zerolinecolor: '#223659'
+        },
+        yaxis: {
+          title: {text: '주파수 (Hz)', font: {color: '#8FA8D6', size: 10}},
+          tickfont: {color: '#8FA8D6', size: 9},
+          range: [0, 4000],
+          gridcolor: '#223659',
+          zerolinecolor: '#223659'
+        }
+      };
+      Plotly.newPlot('plotMelSpec', [specTrace], specLayout, config);
+
+      // 2. Welch PSD Curve with risk bands
+      const psdTrace = {
+        x: chartData.psd_f,
+        y: chartData.psd_y,
+        type: 'scatter',
+        mode: 'lines',
+        line: {color: '#FFFFFF', width: 2},
+        name: '스펙트럼 강도',
+        hovertemplate: '주파수: %{x} Hz<br>강도: %{y:.4f}<extra></extra>'
+      };
+
+      const peakF = chartData.peak_freq || 0;
+      let peakY = 0;
+      for (let i = 0; i < chartData.psd_f.length; i++) {
+        if (Math.abs(chartData.psd_f[i] - peakF) < 20) {
+          peakY = chartData.psd_y[i];
+          break;
+        }
+      }
+
+      const peakTrace = {
+        x: [peakF],
+        y: [peakY],
+        type: 'scatter',
+        mode: 'markers+text',
+        marker: {color: '#FBBF24', size: 7, symbol: 'circle'},
+        text: [`피크 ${Math.round(peakF)}Hz`],
+        textposition: 'top center',
+        textfont: {color: '#FBBF24', size: 10, weight: 'bold'},
+        name: '최대 피크',
+        hoverinfo: 'skip'
+      };
+
+      const psdLayout = {
+        paper_bgcolor: '#0B1422',
+        plot_bgcolor: '#131E32',
+        margin: {l: 45, r: 25, t: 15, b: 35},
+        showlegend: false,
+        xaxis: {
+          title: {text: '주파수 (Hz)', font: {color: '#8FA8D6', size: 10}},
+          tickfont: {color: '#8FA8D6', size: 9},
+          range: [0, 4000],
+          gridcolor: '#1A2944'
+        },
+        yaxis: {
+          title: {text: '스펙트럼 강도', font: {color: '#8FA8D6', size: 10}},
+          tickfont: {color: '#8FA8D6', size: 9},
+          gridcolor: '#1A2944'
+        },
+        shapes: [
+          {type: 'rect', xref: 'x', yref: 'paper', x0: 0, x1: 300, y0: 0, y1: 1, fillcolor: '#64748B', opacity: 0.15, line: {width: 0}},
+          {type: 'rect', xref: 'x', yref: 'paper', x0: 300, x1: 1500, y0: 0, y1: 1, fillcolor: '#00E3FD', opacity: 0.12, line: {width: 0}},
+          {type: 'rect', xref: 'x', yref: 'paper', x0: 1500, x1: 4000, y0: 0, y1: 1, fillcolor: '#F87171', opacity: 0.18, line: {width: 0}}
+        ],
+        annotations: [
+          {x: 150, y: 0.92, xref: 'x', yref: 'paper', text: '저주파 (환경/대구경)', showarrow: false, font: {color: '#94A3B8', size: 9}},
+          {x: 900, y: 0.92, xref: 'x', yref: 'paper', text: '중주파 (관체진동)', showarrow: false, font: {color: '#00E3FD', size: 9}},
+          {x: 2750, y: 0.92, xref: 'x', yref: 'paper', text: '고주파 (누수제트)', showarrow: false, font: {color: '#F87171', size: 9}}
+        ]
+      };
+      Plotly.newPlot('plotWelchPsd', [psdTrace, peakTrace], psdLayout, config);
+      if (document.getElementById('dispPeakBadge')) {
+        document.getElementById('dispPeakBadge').innerText = `피크 ${Math.round(peakF)} Hz`;
+      }
+
+      // 3. AI Dual Probability Horizontal Bar Chart
+      const pureP = chartData.pure_p !== undefined ? chartData.pure_p : 0.0;
+      const pipeP = chartData.pipe_p;
+
+      const yLabels = ['배관 물리 결합', '순수 음향 모델'];
+      const xValues = [pipeP !== null && pipeP !== undefined ? pipeP : 0.0, pureP];
+      const barColors = [
+        pipeP !== null && pipeP !== undefined ? (pipeP >= 50 ? '#F87171' : '#00E3FD') : '#1E2D44',
+        pureP >= 50 ? '#F87171' : '#00E3FD'
+      ];
+      const textLabels = [
+        pipeP !== null && pipeP !== undefined ? `${pipeP.toFixed(1)}%` : '미지정 (관경 입력 시 활성화)',
+        `${pureP.toFixed(1)}%`
+      ];
+
+      const barTrace = {
+        y: yLabels,
+        x: xValues,
+        type: 'bar',
+        orientation: 'h',
+        marker: {
+          color: barColors,
+          line: {color: '#3A5075', width: 1}
+        },
+        text: textLabels,
+        textposition: 'auto',
+        textfont: {color: '#FFFFFF', size: 10, weight: 'bold'},
+        hoverinfo: 'none'
+      };
+
+      const barLayout = {
+        paper_bgcolor: '#0B1422',
+        plot_bgcolor: '#131E32',
+        margin: {l: 95, r: 25, t: 15, b: 35},
+        xaxis: {
+          title: {text: '누수 확률 (%)', font: {color: '#8FA8D6', size: 10}},
+          tickfont: {color: '#8FA8D6', size: 9},
+          range: [0, 100],
+          gridcolor: '#1A2944'
+        },
+        yaxis: {
+          tickfont: {color: '#E2E8F0', size: 10},
+          gridcolor: '#1A2944'
+        },
+        shapes: [
+          {type: 'line', xref: 'x', yref: 'paper', x0: 50, x1: 50, y0: 0, y1: 1, line: {color: '#F87171', width: 1.5, dash: 'dot'}}
+        ],
+        annotations: [
+          {x: 52, y: 0.1, xref: 'x', yref: 'paper', text: '판정선 50%', showarrow: false, font: {color: '#F87171', size: 9}}
+        ]
+      };
+      Plotly.newPlot('plotDualBar', [barTrace], barLayout, config);
+    }
+
+    function switchChartMode(mode) {
+      const specCard = document.getElementById('chartSpecCard');
+      const bottomRow = document.getElementById('chartBottomRow');
+      const psdCard = document.getElementById('chartPsdCard');
+      const dualCard = document.getElementById('chartDualCard');
+      const specPlot = document.getElementById('plotMelSpec');
+
+      const btns = ['btnChartAll', 'btnChartSpec', 'btnChartPsd', 'btnChartDual'];
+      btns.forEach(b => {
+        const el = document.getElementById(b);
+        if (el) el.className = 'px-2.5 py-1 rounded hover:bg-surface-bright text-on-surface-variant transition-all';
+      });
+
+      const activeMap = {'all': 'btnChartAll', 'spec': 'btnChartSpec', 'psd': 'btnChartPsd', 'dual': 'btnChartDual'};
+      if (document.getElementById(activeMap[mode])) {
+        document.getElementById(activeMap[mode]).className = 'px-2.5 py-1 rounded bg-secondary text-[#001f24] font-bold transition-all';
+      }
+
+      if (mode === 'all') {
+        specCard.classList.remove('hidden');
+        bottomRow.classList.remove('hidden');
+        psdCard.classList.remove('hidden');
+        dualCard.classList.remove('hidden');
+        bottomRow.className = 'grid grid-cols-1 lg:grid-cols-2 gap-3';
+        specPlot.style.height = '240px';
+      } else if (mode === 'spec') {
+        specCard.classList.remove('hidden');
+        bottomRow.classList.add('hidden');
+        specPlot.style.height = '340px';
+      } else if (mode === 'psd') {
+        specCard.classList.add('hidden');
+        bottomRow.classList.remove('hidden');
+        psdCard.classList.remove('hidden');
+        dualCard.classList.add('hidden');
+        bottomRow.className = 'grid grid-cols-1 gap-3';
+      } else if (mode === 'dual') {
+        specCard.classList.add('hidden');
+        bottomRow.classList.remove('hidden');
+        psdCard.classList.add('hidden');
+        dualCard.classList.remove('hidden');
+        bottomRow.className = 'grid grid-cols-1 gap-3';
+      }
+
+      setTimeout(() => {
+        ['plotMelSpec', 'plotWelchPsd', 'plotDualBar'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el && el.data) Plotly.Plots.resize(el);
+        });
+      }, 80);
+    }
+
     function renderContributingFactors(factors) {
       const c = document.getElementById('contributingFactorsList');
       if (!c) return;
@@ -2380,6 +2683,7 @@ def diagnose():
             'summary_desc': res.get('summary_desc', '-'),
             'applied_model': res.get('적용모델', '통합 AI 엔진'),
             'plot_b64': res.get('plot_b64'),
+            'interactive_chart': res.get('interactive_chart'),
             'waveform_bars': res.get('waveform_bars', []),
             'contributing_factors': res.get('contributing_factors', []),
             'pipe_profiler_report': res.get('pipe_profiler_report')
