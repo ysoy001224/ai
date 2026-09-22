@@ -404,7 +404,41 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
     p_b5 = np.sum(psd_calib[(f >= 3000) & (f <= 4000)]) / total_p
 
     spectral_centroid = float(np.sum(f * psd_calib) / total_p)
-    peak_freq = float(f[np.argmax(psd_calib)])
+    
+    # 2차 다항식/포물선 보간법 (Parabolic Interpolation) 기반 아날로그 참값 피크 추정
+    def calc_parabolic_peak(f_arr, psd_arr, idx):
+        if idx <= 0 or idx >= len(psd_arr) - 1:
+            return float(f_arr[idx]), float(psd_arr[idx])
+        y0 = float(psd_arr[idx])
+        ym = float(psd_arr[idx - 1])
+        yp = float(psd_arr[idx + 1])
+        denom = ym - 2.0 * y0 + yp
+        if abs(denom) < 1e-12:
+            return float(f_arr[idx]), y0
+        delta = 0.5 * (ym - yp) / denom
+        df = float(f_arr[1] - f_arr[0])
+        peak_f_val = float(f_arr[idx]) + delta * df
+        peak_y_val = y0 - 0.25 * (ym - yp) * delta
+        return max(0.0, min(4000.0, peak_f_val)), max(0.0, peak_y_val)
+
+    # 1) 관체 공진 피크 (300~1,000Hz 대역의 최대 공진점)
+    mask_body = (f >= 250) & (f <= 1000)
+    if np.any(mask_body):
+        idx_body = np.where(mask_body)[0][np.argmax(psd_calib[mask_body])]
+        peak_body_f, peak_body_y = calc_parabolic_peak(f, psd_calib, idx_body)
+    else:
+        idx_body = int(np.argmax(psd_calib))
+        peak_body_f, peak_body_y = calc_parabolic_peak(f, psd_calib, idx_body)
+
+    # 2) 누수 고주파 제트 피크 (1,500~4,000Hz 대역의 최대 분출점)
+    mask_jet = (f >= 1500) & (f <= 4000)
+    if np.any(mask_jet):
+        idx_jet = np.where(mask_jet)[0][np.argmax(psd_calib[mask_jet])]
+        peak_jet_f, peak_jet_y = calc_parabolic_peak(f, psd_calib, idx_jet)
+    else:
+        peak_jet_f, peak_jet_y = 2000.0, 0.0
+
+    peak_freq = peak_body_f
     hf_ratio = float((p_b4 + p_b5) / (p_b2 + 1e-6))
     p_high = (p_b4 + p_b5) * 100.0
 
@@ -536,12 +570,18 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
     ds_mel = zoom(log_mel_full, (1.0, scale_w), order=1)
     interactive_spec_z = [[round(float(v), 1) for v in row] for row in ds_mel]
 
+    has_jet_peak = bool(is_leak or (p_high >= 12.0))
     interactive_chart = {
         'spec_z': interactive_spec_z,
         'spec_dur': round(float(dur), 2),
         'psd_f': [round(float(x), 1) for x in f],
         'psd_y': [round(float(x), 5) for x in psd_calib],
-        'peak_freq': round(float(peak_freq), 1),
+        'peak_freq': round(float(peak_body_f), 1),
+        'peak_body_f': round(float(peak_body_f), 1),
+        'peak_body_y': round(float(peak_body_y), 5),
+        'peak_jet_f': round(float(peak_jet_f), 1) if has_jet_peak else None,
+        'peak_jet_y': round(float(peak_jet_y), 5) if has_jet_peak else None,
+        'has_jet_peak': has_jet_peak,
         'pure_p': round(float(pure_leak_p), 1) if pure_leak_p is not None else 0.0,
         'pipe_p': round(float(pipe_leak_p), 1) if pipe_leak_p is not None else None
     }
@@ -783,8 +823,9 @@ def analyze_audio(fp, eff_depth=0.7, mop_code=-1.0, pipe_di=-1.0, before_pre=-1.
         'mat_is_custom': mat_is_custom,
         'di_is_custom': di_is_custom,
         '고주파잔존비': round(hf_ratio, 2),
-        '중심주파수': round(spectral_centroid, 1),
-        '피크주파수': round(peak_freq, 1),
+        '피크주파수': round(peak_body_f, 1),
+        '제트피크': round(peak_jet_f, 1) if has_jet_peak else None,
+        'peak_jet': round(peak_jet_f, 1) if has_jet_peak else None,
         'p_high': round(p_high, 1),
         'spectral_centroid': round(spectral_centroid, 1),
         '분출형태': leak_type_title,
@@ -1393,9 +1434,9 @@ HTML_PAGE = """
 
           <!-- 5. 주요 피크 주파수 -->
           <div class="bg-surface-container p-3 sm:p-3.5 rounded border border-outline-variant flex flex-col justify-between min-h-[96px] sm:min-h-[105px]">
-            <div class="text-[11px] sm:text-xs text-on-surface-variant mb-1 font-medium">주요 피크 주파수</div>
+            <div class="text-[11px] sm:text-xs text-on-surface-variant mb-1 font-medium">관체 공진 피크</div>
             <div class="text-base sm:text-lg font-bold text-secondary font-mono" id="dispPeakFreq">-- Hz</div>
-            <div class="text-[10px] sm:text-[11px] text-on-surface-variant mt-1.5">Welch PSD 최대치</div>
+            <div class="text-[10px] sm:text-[11px] text-on-surface-variant mt-1.5" id="dispPeakDesc">제트 분출 피크: --</div>
           </div>
 
           <!-- 6. 고주파 잔존비 -->
@@ -1996,6 +2037,18 @@ HTML_PAGE = """
 
       document.getElementById('dispSnr').innerText = `${data.snr_db} dB`;
       document.getElementById('dispPeakFreq').innerText = `${Math.round(data.peak_freq)} Hz`;
+
+      const elPeakDesc = document.getElementById('dispPeakDesc');
+      if (elPeakDesc) {
+        if (data.peak_jet) {
+          elPeakDesc.innerText = `제트 분출: ${Math.round(data.peak_jet)} Hz`;
+          elPeakDesc.className = "text-[10px] sm:text-[11px] text-rose-400 font-semibold mt-1.5";
+        } else {
+          elPeakDesc.innerText = "정상 관체 (제트 없음)";
+          elPeakDesc.className = "text-[10px] sm:text-[11px] text-emerald-400 font-semibold mt-1.5";
+        }
+      }
+
       document.getElementById('dispHfRatio').innerText = `${data.hf_ratio}`;
       document.getElementById('dispPeakDb').innerText = `-${(32.0 - data.snr_db).toFixed(1)} dB`;
 
@@ -2347,7 +2400,7 @@ ${p.final_desc || ''}`;
       };
       Plotly.newPlot('plotMelSpec', [specTrace], specLayout, config);
 
-      // 2. Welch PSD Curve with risk bands
+      // 2. Welch PSD Curve with Dual Peaks (관체 공진 피크 & 누수 고주파 제트 피크)
       const psdTrace = {
         x: chartData.psd_f,
         y: chartData.psd_y,
@@ -2358,27 +2411,60 @@ ${p.final_desc || ''}`;
         hovertemplate: '주파수: %{x} Hz<br>강도: %{y:.4f}<extra></extra>'
       };
 
-      const peakF = chartData.peak_freq || 0;
-      let peakY = 0;
-      for (let i = 0; i < chartData.psd_f.length; i++) {
-        if (Math.abs(chartData.psd_f[i] - peakF) < 20) {
-          peakY = chartData.psd_y[i];
-          break;
+      const peakBodyF = chartData.peak_body_f || chartData.peak_freq || 0;
+      let peakBodyY = chartData.peak_body_y || 0;
+      if (peakBodyY === 0 && chartData.psd_f) {
+        for (let i = 0; i < chartData.psd_f.length; i++) {
+          if (Math.abs(chartData.psd_f[i] - peakBodyF) < 20) {
+            peakBodyY = chartData.psd_y[i];
+            break;
+          }
         }
       }
 
-      const peakTrace = {
-        x: [peakF],
-        y: [peakY],
+      const traces = [psdTrace];
+
+      // 마커 1: 관체 공진 피크 (청록색)
+      const bodyPeakTrace = {
+        x: [peakBodyF],
+        y: [peakBodyY],
         type: 'scatter',
         mode: 'markers+text',
-        marker: {color: '#FBBF24', size: 7, symbol: 'circle'},
-        text: [`피크 ${Math.round(peakF)}Hz`],
+        marker: {color: '#00E3FD', size: 8, symbol: 'circle', line: {color: '#FFFFFF', width: 1.5}},
+        text: [`관체 공진 ${Math.round(peakBodyF)}Hz`],
         textposition: 'top center',
-        textfont: {color: '#FBBF24', size: 10, weight: 'bold'},
-        name: '최대 피크',
+        textfont: {color: '#00E3FD', size: 10, weight: 'bold'},
+        name: '관체 공진 피크',
         hoverinfo: 'skip'
       };
+      traces.push(bodyPeakTrace);
+
+      // 마커 2: 누수 고주파 제트 피크 (누수 신호이거나 고주파가 검출되었을 때)
+      if (chartData.has_jet_peak && chartData.peak_jet_f) {
+        const peakJetF = chartData.peak_jet_f;
+        let peakJetY = chartData.peak_jet_y || 0;
+        if (peakJetY === 0 && chartData.psd_f) {
+          for (let i = 0; i < chartData.psd_f.length; i++) {
+            if (Math.abs(chartData.psd_f[i] - peakJetF) < 20) {
+              peakJetY = chartData.psd_y[i];
+              break;
+            }
+          }
+        }
+        const jetPeakTrace = {
+          x: [peakJetF],
+          y: [peakJetY],
+          type: 'scatter',
+          mode: 'markers+text',
+          marker: {color: '#F43F5E', size: 9, symbol: 'diamond', line: {color: '#FFFFFF', width: 1.5}},
+          text: [`누수 제트 ${Math.round(peakJetF)}Hz`],
+          textposition: 'top center',
+          textfont: {color: '#FB7185', size: 10, weight: 'bold'},
+          name: '누수 제트 피크',
+          hoverinfo: 'skip'
+        };
+        traces.push(jetPeakTrace);
+      }
 
       const psdLayout = {
         paper_bgcolor: '#0B1422',
@@ -2403,13 +2489,17 @@ ${p.final_desc || ''}`;
         ],
         annotations: [
           {x: 150, y: 0.92, xref: 'x', yref: 'paper', text: '저주파 (환경/대구경)', showarrow: false, font: {color: '#94A3B8', size: 9}},
-          {x: 900, y: 0.92, xref: 'x', yref: 'paper', text: '중주파 (관체진동)', showarrow: false, font: {color: '#00E3FD', size: 9}},
+          {x: 900, y: 0.92, xref: 'x', yref: 'paper', text: '중주파 (관체공진)', showarrow: false, font: {color: '#00E3FD', size: 9}},
           {x: 2750, y: 0.92, xref: 'x', yref: 'paper', text: '고주파 (누수제트)', showarrow: false, font: {color: '#F87171', size: 9}}
         ]
       };
-      Plotly.newPlot('plotWelchPsd', [psdTrace, peakTrace], psdLayout, config);
+      Plotly.newPlot('plotWelchPsd', traces, psdLayout, config);
       if (document.getElementById('dispPeakBadge')) {
-        document.getElementById('dispPeakBadge').innerText = `피크 ${Math.round(peakF)} Hz`;
+        if (chartData.has_jet_peak && chartData.peak_jet_f) {
+          document.getElementById('dispPeakBadge').innerText = `관체 ${Math.round(peakBodyF)}Hz · 제트 ${Math.round(chartData.peak_jet_f)}Hz`;
+        } else {
+          document.getElementById('dispPeakBadge').innerText = `관체 ${Math.round(peakBodyF)}Hz (제트 없음)`;
+        }
       }
 
       // 3. AI Dual Probability Horizontal Bar Chart
@@ -2727,6 +2817,7 @@ def diagnose():
             'di_is_custom': res.get('di_is_custom', False),
             'hf_ratio': res.get('고주파잔존비', 0.0),
             'peak_freq': res.get('피크주파수', 0.0),
+            'peak_jet': res.get('peak_jet'),
             'p_high': res.get('p_high', 0.0),
             'spectral_centroid': res.get('spectral_centroid', 0.0),
             'snr_db': res.get('snr_db', 18.0),
